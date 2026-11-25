@@ -1,0 +1,20 @@
+{
+  "name": "connect",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Connect Cursor and Claude coding sessions and play a game while both keep building",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "start": "node relay/dist/index.js",
+    "dev:relay": "pnpm --filter @connect/relay dev",
+    "dev:core": "pnpm --filter @connect/core build --watch",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "test:contracts": "forge test --root contracts --match-path test/ConnectEscrow.t.sol",
+    "test:contracts:fork": "forge test --root contracts --match-path test/ConnectEscrow.fork.t.sol -vv"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.15.1"
+}
