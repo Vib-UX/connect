@@ -115,6 +115,8 @@ export class RelayStore {
   private readonly bank: PlayBank;
   private readonly transfers = new Map<ConnectId, StakeTransfer>();
   private readonly ledgers = new Map<ConnectId, StakeTransfer[]>();
+  private readonly walletLedgers = new Map<string, StakeTransfer[]>();
+  private readonly walletTransfers = new Map<string, StakeTransfer>();
   private readonly payouts = new Map<ConnectId, PayoutReceipt>();
   private readonly notes = new Map<ConnectId, string>();
   private readonly settled = new Set<string>();
@@ -1498,6 +1500,14 @@ export class RelayStore {
     const prev = this.ledgers.get(id) ?? [];
     this.ledgers.set(id, [row, ...prev.filter((item) => item.id !== row.id)].slice(0, 12));
     this.transfers.set(id, row);
+    const wallet = this.byId.get(id)?.identity?.walletAddress?.toLowerCase();
+    if (!wallet) return;
+    const shared = this.walletLedgers.get(wallet) ?? [];
+    this.walletLedgers.set(wallet, [row, ...shared.filter((item) => item.id !== row.id)].slice(0, 12));
+    this.walletTransfers.set(wallet, row);
+    for (const conn of this.byId.values()) {
+      if (conn.identity?.walletAddress?.toLowerCase() === wallet) this.sendBank(conn);
+    }
   }
 
   private rewriteStake(key: string, fromChain: string, toChain: string, href: string | null, note: string): void {
@@ -1520,6 +1530,15 @@ export class RelayStore {
     }
   }
 
+  private ledgerFor(id: ConnectId | undefined, wallet?: string): StakeTransfer[] {
+    const rows = id ? [...(this.ledgers.get(id) ?? [])] : [];
+    const shared = wallet ? this.walletLedgers.get(wallet.toLowerCase()) ?? [] : [];
+    for (const row of shared) {
+      if (!rows.some((item) => item.id === row.id)) rows.push(row);
+    }
+    return rows;
+  }
+
   private bankView(conn: Conn): BankView {
     const wallet = conn.identity?.walletAddress;
     const id = conn.identity?.id;
@@ -1536,8 +1555,8 @@ export class RelayStore {
         canClaim: units > 0n,
         canPlay: units >= STAKE_USDT,
         claimLabel: units > 0n ? `Withdraw ${formatUsdt(units)}` : "Withdraw",
-        transfer: id ? (this.transfers.get(id) ?? null) : null,
-        ledger: id ? (this.ledgers.get(id) ?? []) : [],
+        transfer: (id ? this.transfers.get(id) : undefined) ?? (wallet ? this.walletTransfers.get(wallet.toLowerCase()) : undefined) ?? null,
+        ledger: this.ledgerFor(id, wallet),
         payout: id ? (this.payouts.get(id) ?? null) : null,
         note: id ? (this.notes.get(id) ?? "") : "",
       };
