@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "connect": {
+      "command": "node",
+      "args": ["/Users/btc/connect/packages/core/dist/mcp/cli.js"],
+      "env": {
+        "CONNECT_HOST": "cursor",
+        "CONNECT_RELAY_URL": "wss://connectrelay-production.up.railway.app/ws",
+        "CONNECT_RELAY_HTTP": "https://connectrelay-production.up.railway.app",
+        "CONNECT_DISPLAY_NAME": "cursor-local"
+      }
+    }
+  }
+}
