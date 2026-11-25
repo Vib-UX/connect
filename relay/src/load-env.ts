@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-/** Fill missing variables from a local .env. Railway already injects its own, and those win. */
-const file = resolve(process.cwd(), "../.env");
+/** Fill missing variables from the repo-root .env. Railway already injects its own, and those win. */
+const file = resolve(dirname(fileURLToPath(import.meta.url)), "../../.env");
 if (existsSync(file)) {
   for (const line of readFileSync(file, "utf8").split("\n")) {
     const trimmed = line.trim();
