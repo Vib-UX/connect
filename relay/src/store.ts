@@ -336,7 +336,7 @@ export class RelayStore {
         id,
         found.added > 0
           ? `Deposit added on ${where}. Balance ${formatUsdc(units)}. A loss takes ${LEGACY_STAKE_USD}. Claim the rest whenever you want.`
-          : `No new USDC yet. Send ${LEGACY_DEPOSIT_USD} USDC on ${where} to the treasury.`,
+          : `No deposit yet. Deposit USDT on ${where} into the Connect escrow.`,
       );
       this.sendBank(conn);
     } catch (err) {
@@ -822,7 +822,7 @@ export class RelayStore {
     return first?.pairId ?? null;
   }
 
-  /** The Base watcher calls this when DrawFulfilled is visible for a held pair. */
+  /** Called when a draw word is visible for a held pair. */
   applyDraw(pairId: `0x${string}`, word: bigint): ChessState | null {
     const held = this.pending.get(pairId);
     if (!held) return null;
@@ -1114,7 +1114,7 @@ export class RelayStore {
 
   /**
    * Free escrow balance must cover one match stake on BNB Chain.
-   * Without escrow, the legacy Base/Optimism ledger must cover $0.05 USDC.
+   * Without the escrow configured, play stays closed.
    */
   private assertDeposit(conn: Conn): void {
     if (!this.options?.requireDeposit) return;
@@ -1131,10 +1131,8 @@ export class RelayStore {
       return;
     }
     const chainId = stakeChain(conn.identity);
-    const home = treasuryHome(chainId);
     if (!wallet || this.bank.balanceOf(wallet, chainId) < STAKE_USDC) {
-      if (home) throw new Error(`Deposit $1.00 USDC on ${home.name} to ${home.address} before you play.`);
-      throw new Error("Deposit $1.00 USDC on Base or Optimism before you play. A claim on this chain is sent over CCIP.");
+      throw new Error("Deposit USDT on BNB testnet into the Connect escrow before you play.");
     }
   }
 

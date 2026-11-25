@@ -78,7 +78,7 @@ test("a 0.1 escrow balance covers many 0.001 staked matches without another depo
   assert.equal(match1.status, "active");
   assert.equal(match1.stakeWei, STAKE_USDT.toString());
   assert.equal(await escrow.balanceOf(ADA), SUGGESTED_DEPOSIT_USDT - STAKE_USDT);
-  assert.equal(bank.balanceOf(ADA, 8453), 0n);
+  assert.equal(bank.balanceOf(ADA, 97), 0n);
 
   const loser = match1.white;
   const winner = match1.black;
@@ -99,8 +99,8 @@ test("a 0.1 escrow balance covers many 0.001 staked matches without another depo
   assert.match(won.ledger[0]?.href ?? "", /testnet\.bscscan\.com\/tx\/0x2222/);
   assert.equal(lost.ledger[0]?.line, "Lost $0.001 on BNB testnet.");
   assert.equal(lost.ledger[0]?.href, won.ledger[0]?.href);
-  assert.equal(bank.balanceOf(ADA, 8453), 0n);
-  assert.equal(bank.balanceOf(BOB, 10), 0n);
+  assert.equal(bank.balanceOf(ADA, 97), 0n);
+  assert.equal(bank.balanceOf(BOB, 97), 0n);
 
   const winnerBal = await escrow.balanceOf(winner === A ? ADA : BOB);
   const loserBal = await escrow.balanceOf(loser === A ? ADA : BOB);
@@ -155,10 +155,10 @@ test("a staked win does not call PlayBank.take", async () => {
   escrow.credit(ADA, SUGGESTED_DEPOSIT_USDT);
   escrow.credit(BOB, SUGGESTED_DEPOSIT_USDT);
   const bank = new PlayBank();
-  bank.credit(ADA, `0x${"aa".repeat(32)}`, 1_000_000n, 8453);
-  bank.credit(BOB, `0x${"bb".repeat(32)}`, 1_000_000n, 10);
-  const beforeA = bank.balanceOf(ADA, 8453);
-  const beforeB = bank.balanceOf(BOB, 10);
+  bank.credit(ADA, `0x${"aa".repeat(32)}`, 1_000_000n, 56);
+  bank.credit(BOB, `0x${"bb".repeat(32)}`, 1_000_000n, 56);
+  const beforeA = bank.balanceOf(ADA, 56);
+  const beforeB = bank.balanceOf(BOB, 56);
 
   const store = new RelayStore({ bank, requireDeposit: true, escrow });
   const ada = fakeSocket();
@@ -188,7 +188,7 @@ test("a staked win does not call PlayBank.take", async () => {
   await tick(80);
 
   assert.equal(escrow.settles.length, 1);
-  assert.equal(bank.balanceOf(ADA, 8453), beforeA);
-  assert.equal(bank.balanceOf(BOB, 10), beforeB);
+  assert.equal(bank.balanceOf(ADA, 56), beforeA);
+  assert.equal(bank.balanceOf(BOB, 56), beforeB);
   assert.ok(STAKE_USDC > 0n);
 });

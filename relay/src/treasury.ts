@@ -12,16 +12,10 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { evmChain, treasuryHome, treasuryHomes, type TreasuryHome } from "./chains.js";
 
-/** CCIP chain selectors. Base pays in place; the others are CCIP 2.0 lanes from Base. */
-export const MAINNET_LANES = {
-  1: { name: "Ethereum", selector: 5009297550715157269n },
-  8453: { name: "Base", selector: 15971525489660198786n },
-  42161: { name: "Arbitrum", selector: 4949039107694359620n },
-  10: { name: "Optimism", selector: 3734403246176062136n },
-  137: { name: "Polygon", selector: 4051577828743386545n },
-} as const;
-
-export type MainnetChainId = keyof typeof MAINNET_LANES;
+/** Connect settles on the BNB escrow. There is no cross-chain payout lane. */
+export function laneForChain(_chainId: number): null {
+  return null;
+}
 
 const TREASURY_ABI = [
   {
@@ -86,12 +80,7 @@ export function choosePayout(destChainId: number, funded: { chainId: number; bal
   return remote ? remote.chainId : null;
 }
 
-export function laneForChain(chainId: number) {
-  if (!Object.prototype.hasOwnProperty.call(MAINNET_LANES, chainId)) return null;
-  return MAINNET_LANES[chainId as MainnetChainId];
-}
-
-/** 1 cent of credit is 0.01 USDC. USDC has 6 decimals. */
+/** 1 cent of credit is 0.01 of a 6-decimal token. */
 export function centsToUsdc(cents: number): bigint {
   if (!Number.isInteger(cents) || cents <= 0) {
     throw new Error("Reward amount must be a positive number of cents");
@@ -160,56 +149,22 @@ function messageIdFrom(receipt: TransactionReceipt, treasury: Address): string |
   return undefined;
 }
 
-/** Send the stake from the loser's treasury to the winner on the other chain. The message id is this transfer, not an older one. */
-export async function sendStake(input: {
+/** Stakes settle on the BNB escrow. There is no cross-chain send. */
+export async function sendStake(_input: {
   fromChainId: number;
   toChainId: number;
   wallet: string;
   amount: bigint;
 }): Promise<{ txHash: Hex; messageId?: string }> {
-  if (input.fromChainId === input.toChainId) throw new Error("A same-chain stake is not a CCIP send");
-  if (!treasuryConfigured()) throw new Error("Treasury is not configured on the relay");
-  if (!isAddress(input.wallet)) throw new Error("Wallet is not an address");
-  const source = treasuryHome(input.fromChainId);
-  const dest = laneForChain(input.toChainId);
-  if (!source || !dest) throw new Error("That chain cannot send the stake");
-  const paid = await writeReward(source, dest.selector, input.wallet, input.amount);
-  return { txHash: paid.txHash, messageId: paid.messageId };
+  throw new Error("Stakes settle on the BNB escrow");
 }
 
-export async function payReward(input: {
+export async function payReward(_input: {
   wallet: string;
   chainId: number;
   amount: bigint;
 }): Promise<{ txHash: Hex; chainId: number; amount: string; chainName: string; messageId?: string }> {
-  if (!treasuryConfigured()) {
-    throw new Error("Treasury is not configured on the relay");
-  }
-  if (!isAddress(input.wallet)) throw new Error("Wallet is not an address");
-  const lane = laneForChain(input.chainId);
-  if (!lane) {
-    throw new Error("Rewards pay USDC on Ethereum, Base, Arbitrum, Optimism, or Polygon");
-  }
-
-  const homes = treasuryHomes();
-  const funded = [];
-  for (const home of homes) {
-    funded.push({ chainId: home.chainId, balance: await usdcBalance(home) });
-  }
-  const sourceId = choosePayout(input.chainId, funded, input.amount);
-  const source = homes.find((home) => home.chainId === sourceId);
-  if (!source) {
-    throw new Error("The treasuries do not hold enough USDC on one chain to pay this claim.");
-  }
-
-  const paid = await writeReward(source, lane.selector, input.wallet, input.amount);
-  return {
-    txHash: paid.txHash,
-    chainId: input.chainId,
-    amount: input.amount.toString(),
-    chainName: lane.name,
-    messageId: paid.messageId,
-  };
+  throw new Error("Claims settle through the BNB escrow");
 }
 
 async function writeReward(

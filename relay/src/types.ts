@@ -178,7 +178,7 @@ export interface StakeTransfer {
   fromChain: string;
   toChain: string;
   line: string;
-  /** CCIP explorer link when the transfer crosses to or from Base. */
+  /** Explorer link for a settlement transaction. */
   href?: string | null;
 }
 

@@ -43,17 +43,17 @@ test("a $1 deposit stays playable, and two losses leave $0.90", async () => {
   store.add(ada.ws);
   store.handle(ada.ws, JSON.stringify({
     type: "hello",
-    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 8453 },
+    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 97 },
   }));
   await settled();
   const view = last(ada.sent, "bank").bank;
   assert.equal(view.balanceUsd, "$1.00");
   assert.equal(view.canPlay, true);
-  assert.equal(bank.balanceOf(ADA, 8453), 1_000_000n);
-  assert.equal(bank.take(ADA, BOB, STAKE_USDC, 8453, 8453), true);
-  assert.equal(bank.take(ADA, BOB, STAKE_USDC, 8453, 8453), true);
-  assert.equal(bank.balanceOf(ADA, 8453), 900_000n);
-  assert.equal(formatUsdc(bank.balanceOf(ADA, 8453)), "$0.90");
+  assert.equal(bank.balanceOf(ADA, 97), 1_000_000n);
+  assert.equal(bank.take(ADA, BOB, STAKE_USDC, 97, 97), true);
+  assert.equal(bank.take(ADA, BOB, STAKE_USDC, 97, 97), true);
+  assert.equal(bank.balanceOf(ADA, 97), 900_000n);
+  assert.equal(formatUsdc(bank.balanceOf(ADA, 97)), "$0.90");
 });
 
 test("a deposit from earlier the same day is still inside the scan window", () => {
@@ -67,9 +67,9 @@ test("a deposit from earlier the same day is still inside the scan window", () =
   assert.ok(latest - from >= 49_000n);
 });
 
-test("optimism log pages stay inside the 10,000 block RPC limit", () => {
-  assert.ok(logSpan(10) <= 10_000n);
-  assert.equal(logSpan(8453), 49_000n);
+test("log pages stay inside the RPC limit", () => {
+  assert.ok(logSpan(97) <= 10_000n);
+  assert.equal(logSpan(56), 9_000n);
   const latest = 1_000_000n;
   const from = latest - 130_000n;
   const depositedAt = latest - 5_620n;
@@ -89,26 +89,26 @@ test("a dollar formats as $1.00 and a game as $0.05", () => {
   assert.equal(formatUsdc(1_000_000n), "$1.00");
   assert.equal(formatUsdc(STAKE_USDC), "$0.05");
   assert.equal(formatUsdc(1_050_000n), "$1.05");
-  assert.equal(transferLine("won", "Optimism", "Base"), "Sending $0.05 from their Optimism to your Base.");
+  assert.equal(transferLine("won", "BNB testnet", "BNB Chain"), "Sending $0.05 from their BNB testnet to your BNB Chain.");
   assert.equal(
-    transferLine("lost", "Optimism", "Base", "https://ccip.chain.link/msg/0xabc"),
-    "CCIP transaction: cross-chain transfer from your Optimism to their Base. https://ccip.chain.link/msg/0xabc",
+    transferLine("lost", "BNB testnet", "BNB Chain", "https://testnet.bscscan.com/tx/0xabc"),
+    "Settlement from your BNB testnet to their BNB Chain. https://testnet.bscscan.com/tx/0xabc",
   );
-  assert.equal(transferLine("lost", "Ethereum", "Polygon"), "Sending $0.05 from your Ethereum to their Polygon.");
+  assert.equal(transferLine("lost", "BNB Chain", "BNB testnet"), "Sending $0.05 from your BNB Chain to their BNB testnet.");
 });
 
 test("a send link is the chain transaction, or the CCIP message when the send crosses chains", () => {
   const hash = `0x${"ab".repeat(32)}`;
   const message = `0x${"cd".repeat(32)}`;
-  assert.equal(txHref("Base", hash), `https://basescan.org/tx/${hash}`);
-  assert.equal(txHref("Optimism", hash), `https://optimistic.etherscan.io/tx/${hash}`);
-  assert.equal(txHref("Base", "0x123"), null);
+  assert.equal(txHref("BNB testnet", hash), `https://testnet.bscscan.com/tx/${hash}`);
+  assert.equal(txHref("BNB Chain", hash), `https://bscscan.com/tx/${hash}`);
+  assert.equal(txHref("BNB testnet", "0x123"), null);
   assert.equal(ccipHref(message), `https://ccip.chain.link/msg/${message}`);
   assert.equal(ccipHref(`0x${"00".repeat(32)}`), null);
-  const same = payoutReceipt({ txHash: hash, chainName: "Base" }, "$1.05");
-  assert.equal(same?.href, `https://basescan.org/tx/${hash}`);
+  const same = payoutReceipt({ txHash: hash, chainName: "BNB testnet" }, "$1.05");
+  assert.equal(same?.href, `https://testnet.bscscan.com/tx/${hash}`);
   assert.equal(same?.ccipHref, null);
-  const crossed = payoutReceipt({ txHash: hash, chainName: "Base", messageId: message }, "$0.05");
+  const crossed = payoutReceipt({ txHash: hash, chainName: "BNB Chain", messageId: message }, "$0.05");
   assert.equal(crossed?.ccipHref, `https://ccip.chain.link/msg/${message}`);
 });
 
@@ -138,12 +138,12 @@ test("claim holds the balance until it is finished or restored", () => {
   assert.equal(bank.balanceOf(ADA), 0n);
 });
 
-test("a Base balance does not include an Optimism deposit", () => {
+test("a BNB Chain balance does not include a BNB testnet deposit", () => {
   const bank = new PlayBank(null, async () => []);
-  assert.equal(bank.credit(ADA, ADA_TX, 1_000_000n, 8453), true);
-  assert.equal(bank.credit(ADA, BOB_TX, 1_200_000n, 10), true);
-  assert.equal(bank.balanceOf(ADA, 8453), 1_000_000n);
-  assert.equal(bank.balanceOf(ADA, 10), 1_200_000n);
+  assert.equal(bank.credit(ADA, ADA_TX, 1_000_000n, 56), true);
+  assert.equal(bank.credit(ADA, BOB_TX, 1_200_000n, 97), true);
+  assert.equal(bank.balanceOf(ADA, 56), 1_000_000n);
+  assert.equal(bank.balanceOf(ADA, 97), 1_200_000n);
 });
 
 test("the bank file remembers a deposit across opens", () => {
@@ -158,8 +158,8 @@ test("the bank file remembers a deposit across opens", () => {
 
 test("flappy moves $0.05 from the loser chain balance to the winner", () => {
   const bank = new PlayBank(null, async () => []);
-  bank.credit(ADA, ADA_TX, 1_000_000n, 8453);
-  bank.credit(BOB, BOB_TX, 1_000_000n, 10);
+  bank.credit(ADA, ADA_TX, 1_000_000n, 56);
+  bank.credit(BOB, BOB_TX, 1_000_000n, 97);
   const store = new RelayStore({ bank });
   const ada = fakeSocket();
   const bob = fakeSocket();
@@ -167,11 +167,11 @@ test("flappy moves $0.05 from the loser chain balance to the winner", () => {
   store.add(bob.ws);
   store.handle(ada.ws, JSON.stringify({
     type: "hello",
-    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 8453 },
+    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 56 },
   }));
   store.handle(bob.ws, JSON.stringify({
     type: "hello",
-    identity: { id: B, displayName: "bob", host: "claude", walletAddress: BOB, chainId: 10 },
+    identity: { id: B, displayName: "bob", host: "claude", walletAddress: BOB, chainId: 97 },
   }));
   store.handle(ada.ws, JSON.stringify({ type: "flappy_join" }));
   store.handle(bob.ws, JSON.stringify({ type: "flappy_join" }));
@@ -179,8 +179,8 @@ test("flappy moves $0.05 from the loser chain balance to the winner", () => {
   store.handle(ada.ws, JSON.stringify({ type: "flappy_score", contestId: start.flappy.id, score: 4 }));
   store.handle(bob.ws, JSON.stringify({ type: "flappy_score", contestId: start.flappy.id, score: 2 }));
 
-  assert.equal(bank.balanceOf(ADA, 8453), 1_050_000n);
-  assert.equal(bank.balanceOf(BOB, 10), 950_000n);
+  assert.equal(bank.balanceOf(ADA, 56), 1_050_000n);
+  assert.equal(bank.balanceOf(BOB, 97), 950_000n);
   const adaBank = last(ada.sent, "bank");
   const bobBank = last(bob.sent, "bank");
   assert.equal(adaBank.bank.balanceUsd, "$1.05");
@@ -188,10 +188,10 @@ test("flappy moves $0.05 from the loser chain balance to the winner", () => {
   assert.equal(last(ada.sent, "flappy").flappy.balanceUsd, "$1.05");
   assert.equal(last(bob.sent, "flappy").flappy.balanceUsd, "$0.95");
   assert.equal(adaBank.bank.depositUsd, "$1.00");
-  assert.equal(adaBank.bank.transfer?.line, "Sending $0.05 from their Optimism to your Base.");
+  assert.equal(adaBank.bank.transfer?.line, "Sending $0.05 from their BNB testnet to your BNB Chain.");
   assert.equal(adaBank.bank.transfer?.href ?? null, null);
-  assert.equal(bobBank.bank.transfer?.line, "Sending $0.05 from your Optimism to their Base.");
-  assert.equal(last(ada.sent, "flappy").flappy.stake, "Sending $0.05 from their Optimism to your Base.");
+  assert.equal(bobBank.bank.transfer?.line, "Sending $0.05 from your BNB testnet to their BNB Chain.");
+  assert.equal(last(ada.sent, "flappy").flappy.stake, "Sending $0.05 from their BNB testnet to your BNB Chain.");
 });
 
 test("a game without a deposit asks for $1.00 and leaves balances alone", () => {
@@ -203,11 +203,11 @@ test("a game without a deposit asks for $1.00 and leaves balances alone", () => 
   store.add(bob.ws);
   store.handle(ada.ws, JSON.stringify({
     type: "hello",
-    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 8453 },
+    identity: { id: A, displayName: "ada", host: "cursor", walletAddress: ADA, chainId: 97 },
   }));
   store.handle(bob.ws, JSON.stringify({
     type: "hello",
-    identity: { id: B, displayName: "bob", host: "claude", walletAddress: BOB, chainId: 42161 },
+    identity: { id: B, displayName: "bob", host: "claude", walletAddress: BOB, chainId: 97 },
   }));
   store.handle(ada.ws, JSON.stringify({ type: "flappy_join" }));
   store.handle(bob.ws, JSON.stringify({ type: "flappy_join" }));
@@ -216,7 +216,7 @@ test("a game without a deposit asks for $1.00 and leaves balances alone", () => 
   store.handle(bob.ws, JSON.stringify({ type: "flappy_score", contestId: start.flappy.id, score: 1 }));
   assert.equal(bank.balanceOf(ADA), 0n);
   assert.equal(bank.balanceOf(BOB), 0n);
-  assert.equal(last(ada.sent, "bank").bank.transfer?.line, "Deposit $1.00 USDC to cover the $0.05.");
+  assert.equal(last(ada.sent, "bank").bank.transfer?.line, "Deposit $1.00 USDT to cover the $0.05.");
 });
 
 test("chess resign moves $0.05 to the player who stays", () => {
@@ -247,17 +247,17 @@ test("chess resign moves $0.05 to the player who stays", () => {
   assert.equal(last(bob.sent, "bank").bank.canClaim, true);
   assert.equal(last(ada.sent, "bank").bank.balanceUsd, "$0.95");
   assert.equal(last(bob.sent, "bank").bank.note, "Balance updated. Claim it whenever you want.");
-  assert.match(last(bob.sent, "bank").bank.transfer?.line ?? "", /\$0\.05 from their Ethereum to your Polygon/);
+  assert.match(last(bob.sent, "bank").bank.transfer?.line ?? "", /\$0\.05 from their chain to your chain/);
 });
 
-test("a Claude loss or resign moves $0.05 from Optimism to Base", () => {
-  assert.equal(stakeChain({ host: "claude" }), 10);
-  assert.equal(stakeChain({ host: "cursor" }), 8453);
-  assert.equal(stakeChain({ host: "claude", chainId: 8453 }), 10);
-  assert.equal(stakeChain({ host: "cursor", chainId: 10 }), 8453);
+test("a loss moves $0.05 from BNB testnet to BNB Chain", () => {
+  assert.equal(stakeChain({}), 97);
+  assert.equal(stakeChain(undefined), 97);
+  assert.equal(stakeChain({ chainId: 56 }), 56);
+  assert.equal(stakeChain({ chainId: 97 }), 97);
   const bank = new PlayBank(null, async () => []);
-  bank.credit(ADA, ADA_TX, 1_000_000n, 10);
-  bank.credit(ADA, BOB_TX, 1_000_000n, 8453);
+  bank.credit(ADA, ADA_TX, 1_000_000n, 97);
+  bank.credit(ADA, BOB_TX, 1_000_000n, 56);
   const store = new RelayStore({ bank });
   const claude = fakeSocket();
   const cursor = fakeSocket();
@@ -269,25 +269,25 @@ test("a Claude loss or resign moves $0.05 from Optimism to Base", () => {
   }));
   store.handle(cursor.ws, JSON.stringify({
     type: "hello",
-    identity: { id: B, displayName: "cursor", host: "cursor", walletAddress: ADA, chainId: 8453 },
+    identity: { id: B, displayName: "cursor", host: "cursor", walletAddress: ADA, chainId: 56 },
   }));
   store.handle(claude.ws, JSON.stringify({ type: "challenge", to: B, stakeWei: "0" }));
   const challenge = last(cursor.sent, "challenge");
   store.handle(cursor.ws, JSON.stringify({ type: "respond_challenge", challengeId: challenge.challenge.id, accept: true }));
   const match = last(claude.sent, "match");
   store.handle(claude.ws, JSON.stringify({ type: "resign", matchId: match.match.matchId }));
-  assert.equal(bank.balanceOf(ADA, 10), 950_000n);
-  assert.equal(bank.balanceOf(ADA, 8453), 1_050_000n);
+  assert.equal(bank.balanceOf(ADA, 97), 950_000n);
+  assert.equal(bank.balanceOf(ADA, 56), 1_050_000n);
   assert.equal(last(claude.sent, "bank").bank.balanceUsd, "$0.95");
-  assert.equal(last(claude.sent, "bank").bank.transfer?.line, "Sending $0.05 from your Optimism to their Base.");
+  assert.equal(last(claude.sent, "bank").bank.transfer?.line, "Sending $0.05 from your BNB testnet to their BNB Chain.");
   assert.equal(last(claude.sent, "bank").bank.transfer?.href ?? null, null);
   assert.equal(last(cursor.sent, "bank").bank.balanceUsd, "$1.05");
 });
 
 test("the CCIP link is the stake send from this game", async () => {
   const bank = new PlayBank(null, async () => []);
-  bank.credit(ADA, ADA_TX, 1_000_000n, 10);
-  bank.credit(BOB, BOB_TX, 1_000_000n, 8453);
+  bank.credit(ADA, ADA_TX, 1_000_000n, 97);
+  bank.credit(BOB, BOB_TX, 1_000_000n, 56);
   const messageId = `0x${"cd".repeat(32)}`;
   const seen: Array<{ fromChainId: number; toChainId: number; wallet: string; amount: bigint }> = [];
   const store = new RelayStore({
@@ -303,11 +303,11 @@ test("the CCIP link is the stake send from this game", async () => {
   store.add(cursor.ws);
   store.handle(claude.ws, JSON.stringify({
     type: "hello",
-    identity: { id: A, displayName: "claude", host: "claude", walletAddress: ADA, chainId: 8453 },
+    identity: { id: A, displayName: "claude", host: "claude", walletAddress: ADA, chainId: 97 },
   }));
   store.handle(cursor.ws, JSON.stringify({
     type: "hello",
-    identity: { id: B, displayName: "cursor", host: "cursor", walletAddress: BOB, chainId: 10 },
+    identity: { id: B, displayName: "cursor", host: "cursor", walletAddress: BOB, chainId: 56 },
   }));
   store.handle(claude.ws, JSON.stringify({ type: "challenge", to: B, stakeWei: "0" }));
   const challenge = last(cursor.sent, "challenge");
@@ -316,15 +316,15 @@ test("the CCIP link is the stake send from this game", async () => {
   store.handle(claude.ws, JSON.stringify({ type: "resign", matchId: match.match.matchId }));
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(seen.length, 1);
-  assert.equal(seen[0]?.fromChainId, 10);
-  assert.equal(seen[0]?.toChainId, 8453);
+  assert.equal(seen[0]?.fromChainId, 97);
+  assert.equal(seen[0]?.toChainId, 56);
   assert.equal(seen[0]?.wallet, BOB);
   assert.equal(seen[0]?.amount, STAKE_USDC);
   const href = `https://ccip.chain.link/msg/${messageId}`;
   assert.equal(last(claude.sent, "bank").bank.transfer?.href, href);
   assert.equal(
     last(claude.sent, "bank").bank.transfer?.line,
-    `CCIP transaction: cross-chain transfer from your Optimism to their Base. ${href}`,
+    `Settlement from your BNB testnet to their BNB Chain. ${href}`,
   );
 });
 
@@ -367,7 +367,7 @@ test("a rematch starts only after both players ask, and the claimable balance st
   assert.equal(last(bob.sent, "bank").bank.canClaim, true);
 });
 
-test("play stays closed until a Base deposit covers $0.05", () => {
+test("play stays closed until a deposit covers $0.05", () => {
   const bank = new PlayBank(null, async () => []);
   const store = new RelayStore({ bank, requireDeposit: true });
   const ada = fakeSocket();
@@ -378,9 +378,9 @@ test("play stays closed until a Base deposit covers $0.05", () => {
   }));
   assert.equal(last(ada.sent, "bank").bank.canPlay, false);
   store.handle(ada.ws, JSON.stringify({ type: "flappy_join" }));
-  assert.match(last(ada.sent, "error").message, /Deposit \$1\.00 USDC on Base or Optimism/);
+  assert.match(last(ada.sent, "error").message, /Deposit USDT on BNB testnet/);
   store.handle(ada.ws, JSON.stringify({ type: "next" }));
-  assert.match(last(ada.sent, "error").message, /Deposit \$1\.00 USDC on Base or Optimism/);
+  assert.match(last(ada.sent, "error").message, /Deposit USDT on BNB testnet/);
   bank.credit(ADA, ADA_TX, 1_000_000n, 1);
   store.handle(ada.ws, JSON.stringify({ type: "flappy_join" }));
   assert.equal(last(ada.sent, "flappy").flappy.status, "waiting");

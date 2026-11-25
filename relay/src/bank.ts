@@ -3,11 +3,8 @@ import { dirname } from "node:path";
 import { createPublicClient, http, isAddress, parseAbiItem, type Address } from "viem";
 import { evmChain, rpcCandidates, treasuryHome } from "./chains.js";
 
-/** USDC on Base. Kept for the Base treasury address default. */
-export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-
-/** ConnectTreasury on Base. One transfer funds many games. */
-export const DEPOSIT_ADDRESS = "0xE2ca5C8ed8589Dc61abE1B2c2Dae309d2f86410c" as const;
+/** Legacy in-memory ledger only. Live deposits are ConnectEscrow.deposit on BNB. */
+export const DEPOSIT_ADDRESS = "0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54" as const;
 
 /** $1.00 USDC, shown as the deposit example. Any amount sent is credited. */
 export const SUGGESTED_DEPOSIT = 1_000_000n;
@@ -20,15 +17,13 @@ export const STAKE_USD = "$0.05";
 
 const TRANSFER = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
 
-/** How far back a deposit check looks. Base produces blocks fast enough that a short block count misses a same-day transfer. */
+/** How far back a deposit check looks. */
 const DEPOSIT_WINDOW_SEC = 3n * 24n * 60n * 60n;
 /** Smallest block span a deposit check walks, so a same-day transfer is not missed when blocks are fast. */
 const MIN_DEPOSIT_BLOCKS = 49_000n;
-/** Public Base RPCs reject a getLogs span much wider than this. */
-const BASE_LOG_SPAN = 49_000n;
-/** Optimism's official RPC rejects eth_getLogs ranges wider than 10,000 blocks. */
-const OPTIMISM_LOG_SPAN = 9_000n;
-/** Parallel log pages. A 3-day Optimism window is about fifteen pages, and the check has to finish inside the client timeout. */
+/** Public RPCs reject a getLogs span much wider than this. */
+const LOG_SPAN = 9_000n;
+/** Parallel log pages. The check has to finish inside the client timeout. */
 const LOG_CONCURRENCY = 4;
 
 /**
@@ -53,8 +48,8 @@ export function depositFromBlock(
 }
 
 /** Page size for eth_getLogs on this chain. Wider pages are rejected by the public RPC. */
-export function logSpan(chainId: number): bigint {
-  return chainId === 10 ? OPTIMISM_LOG_SPAN : BASE_LOG_SPAN;
+export function logSpan(_chainId: number): bigint {
+  return LOG_SPAN;
 }
 
 /** Inclusive block pages of at most `span` blocks, covering `fromBlock` through `latest`. */
@@ -89,45 +84,19 @@ export function formatUsdc(units: bigint): string {
   return `${negative ? "-" : ""}$${whole}.${frac}`;
 }
 
-/** Claude's stake sits on Optimism. Cursor's stake sits on Base. Any other host uses the chain it set. */
-export function stakeChain(identity?: { host?: string; chainId?: number } | null): number {
-  if (identity?.host === "claude") return 10;
-  if (identity?.host === "cursor") return 8453;
+/** Stake chain is the one the player set. The default is BSC testnet. */
+export function stakeChain(identity?: { chainId?: number } | null): number {
   if (typeof identity?.chainId === "number" && identity.chainId > 0) return identity.chainId;
-  return 8453;
+  return 97;
 }
 
 export function chainLabel(chainId?: number): string {
-  switch (chainId) {
-    case 1:
-      return "Ethereum";
-    case 8453:
-      return "Base";
-    case 42161:
-      return "Arbitrum";
-    case 10:
-      return "Optimism";
-    case 137:
-      return "Polygon";
-    case 56:
-      return "BNB Chain";
-    case 97:
-      return "BNB testnet";
-    case 84532:
-      return "Base Sepolia";
-    case 11155111:
-      return "Ethereum Sepolia";
-    default:
-      return "chain";
-  }
+  if (chainId === 56) return "BNB Chain";
+  if (chainId === 97) return "BNB testnet";
+  return "chain";
 }
 
 const TX_EXPLORER: Record<string, string> = {
-  Ethereum: "https://etherscan.io/tx/",
-  Base: "https://basescan.org/tx/",
-  Arbitrum: "https://arbiscan.io/tx/",
-  Optimism: "https://optimistic.etherscan.io/tx/",
-  Polygon: "https://polygonscan.com/tx/",
   "BNB Chain": "https://bscscan.com/tx/",
   "BNB testnet": "https://testnet.bscscan.com/tx/",
 };
@@ -135,8 +104,8 @@ const TX_EXPLORER: Record<string, string> = {
 /** Explorer link for a send on that chain. */
 export function txHref(chainName: string, txHash: string): string | null {
   if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) return null;
-  const base = TX_EXPLORER[chainName];
-  return base ? `${base}${txHash}` : null;
+  const prefix = TX_EXPLORER[chainName];
+  return prefix ? `${prefix}${txHash}` : null;
 }
 
 /** CCIP explorer link for a cross-chain send. */
@@ -167,11 +136,11 @@ export function transferLine(
   toChain: string,
   href?: string | null,
 ): string {
-  if (you === "short") return `Deposit ${DEPOSIT_USD} USDC to cover the ${STAKE_USD}.`;
+  if (you === "short") return `Deposit ${DEPOSIT_USD} USDT to cover the ${STAKE_USD}.`;
   const direction = you === "won"
     ? `from their ${fromChain} to your ${toChain}`
     : `from your ${fromChain} to their ${toChain}`;
-  if (href) return `CCIP transaction: cross-chain transfer ${direction}. ${href}`;
+  if (href) return `Settlement ${direction}. ${href}`;
   if (fromChain !== toChain) return `Sending ${STAKE_USD} ${direction}.`;
   if (you === "won") return `${STAKE_USD} from their ${fromChain} to your ${toChain}.`;
   return `${STAKE_USD} from your ${fromChain} to their ${toChain}.`;
@@ -190,7 +159,7 @@ export async function readUsdcDeposits(wallet: Address, chainId: number): Promis
   if (!isAddress(wallet)) throw new Error("Deposit check needs a wallet.");
   if (!home) {
     throw new Error(
-      `Deposit $1.00 USDC on Base or Optimism. ${chainLabel(chainId)} has no treasury yet, and a claim there is sent over CCIP.`,
+      `Deposit USDT on ${chainLabel(chainId)} into the Connect escrow before you play.`,
     );
   }
   const chain = evmChain(chainId);
@@ -251,7 +220,7 @@ interface SavedBank {
 }
 
 /**
- * Play balances held by the Base treasury.
+ * In-memory balances used only when the escrow is not configured.
  * A deposit is credited once. A loss moves $0.05 to the winner. Claim pays the remainder.
  */
 export class PlayBank {
@@ -270,11 +239,11 @@ export class PlayBank {
     return new PlayBank(file);
   }
 
-  balanceOf(wallet: string, chainId = 8453): bigint {
+  balanceOf(wallet: string, chainId = 97): bigint {
     return this.balances.get(this.slot(wallet, chainId)) ?? 0n;
   }
 
-  credit(wallet: string, txHash: string, amount: bigint, chainId = 8453): boolean {
+  credit(wallet: string, txHash: string, amount: bigint, chainId = 97): boolean {
     if (amount <= 0n || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) return false;
     const hash = txHash.toLowerCase();
     if (this.seen.has(hash)) return false;
@@ -286,7 +255,7 @@ export class PlayBank {
   }
 
   /** Move `amount` from the loser's chain balance to the winner's chain balance. */
-  take(loser: string, winner: string, amount: bigint, fromChain = 8453, toChain = 8453): boolean {
+  take(loser: string, winner: string, amount: bigint, fromChain = 97, toChain = 97): boolean {
     const from = this.slot(loser, fromChain);
     const to = this.slot(winner, toChain);
     if (from === to || amount <= 0n) return false;
@@ -298,7 +267,7 @@ export class PlayBank {
     return true;
   }
 
-  reserveClaim(wallet: string, chainId = 8453): bigint {
+  reserveClaim(wallet: string, chainId = 97): bigint {
     const id = this.slot(wallet, chainId);
     if (this.claiming.has(id)) throw new Error("Claim already in progress.");
     const amount = this.balances.get(id) ?? 0n;
@@ -309,7 +278,7 @@ export class PlayBank {
     return amount;
   }
 
-  restore(wallet: string, amount: bigint, chainId = 8453): void {
+  restore(wallet: string, amount: bigint, chainId = 97): void {
     const id = this.slot(wallet, chainId);
     this.claiming.delete(id);
     if (amount <= 0n) return;
@@ -317,23 +286,17 @@ export class PlayBank {
     this.save();
   }
 
-  finishClaim(wallet: string, chainId = 8453): void {
+  finishClaim(wallet: string, chainId = 97): void {
     this.claiming.delete(this.slot(wallet, chainId));
   }
 
-  async pull(wallet: Address, chainId = 8453): Promise<{ added: number; chains: string[] }> {
-    const home = treasuryHome(chainId);
-    if (!home) {
-      throw new Error(
-        `Deposit $1.00 USDC on Base or Optimism. ${chainLabel(chainId)} has no treasury yet, and a claim there is sent over CCIP.`,
-      );
-    }
+  async pull(wallet: Address, chainId = 97): Promise<{ added: number; chains: string[] }> {
     const rows = await this.readDeposits(wallet, chainId);
     let added = 0;
     for (const row of rows) {
       if (this.credit(wallet, row.txHash, row.amount, chainId)) added += 1;
     }
-    return { added, chains: added > 0 ? [home.name] : [] };
+    return { added, chains: added > 0 ? [chainLabel(chainId)] : [] };
   }
 
   private slot(wallet: string, chainId: number): string {

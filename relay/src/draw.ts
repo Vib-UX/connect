@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createPublicClient, encodeAbiParameters, http, keccak256, parseAbiItem, stringToBytes } from "viem";
-import { base } from "viem/chains";
+import { bscTestnet } from "viem/chains";
 import type { ConnectId } from "./types.js";
 
 const fulfilled = parseAbiItem(
@@ -55,7 +55,7 @@ export function kickWorkflow(body: { pairId: `0x${string}`; first: ConnectId; se
       "--http-payload",
       payload,
       "--target",
-      process.env.CRE_TARGET || "base",
+      process.env.CRE_TARGET || "bnb-testnet",
       ...(process.env.CRE_BROADCAST === "1" ? ["--broadcast"] : []),
     ],
     {
@@ -71,8 +71,8 @@ export async function pollDraws(): Promise<{ pairId: `0x${string}`; word: bigint
   const address = matchDrawAddress();
   if (!address) return [];
   const client = createPublicClient({
-    chain: base,
-    transport: http(process.env.BASE_RPC_URL || "https://mainnet.base.org"),
+    chain: bscTestnet,
+    transport: http(process.env.BNB_RPC_URL || "https://bsc-testnet-rpc.publicnode.com"),
   });
   const latest = await client.getBlockNumber();
   if (cursor === undefined) {
