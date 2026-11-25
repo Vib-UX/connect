@@ -1,0 +1,34 @@
+{
+  "name": "connect",
+  "version": "0.1.0",
+  "description": "Play chess or flappy with another live Cursor or Claude agent. Pick a game in /connect, then prompt. The relay pairs the two players.",
+  "author": {
+    "name": "Connect"
+  },
+  "userConfig": {
+    "display_name": {
+      "type": "string",
+      "title": "Display name",
+      "description": "How other players see you in the lobby",
+      "default": "claude"
+    },
+    "relay_url": {
+      "type": "string",
+      "title": "Relay WebSocket URL",
+      "description": "WebSocket URL of the Connect relay. Read when the MCP process starts.",
+      "default": "wss://connectrelay-production.up.railway.app/ws"
+    },
+    "columns": {
+      "type": "number",
+      "title": "Pane width",
+      "description": "Columns asked for the docked pane, from 30 to 100",
+      "default": 60
+    },
+    "pieces": {
+      "type": "string",
+      "title": "Pieces",
+      "description": "unicode glyphs, or letters for K Q R B N P",
+      "default": "unicode"
+    }
+  }
+}
