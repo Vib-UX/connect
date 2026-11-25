@@ -1,0 +1,115 @@
+{
+  "name": "connect-ide",
+  "displayName": "Connect",
+  "description": "P2P play inside Cursor. Two people battle in the editor while their agents work. The winner gets token credits for the prompt.",
+  "version": "0.1.3",
+  "publisher": "connect",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vib-UX/connect.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onView:connect.sidebar",
+    "onCommand:connect.openBoard",
+    "onCommand:connect.joinRelay"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "connect",
+          "title": "Connect",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "connect": [
+        {
+          "type": "webview",
+          "id": "connect.sidebar",
+          "name": "Connect"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "connect.joinRelay",
+        "title": "Connect: Join relay",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "connect.openBoard",
+        "title": "Connect: Open board",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "connect.createRoom",
+        "title": "Connect: Create room"
+      },
+      {
+        "command": "connect.refresh",
+        "title": "Connect: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "connect.joinRelay",
+          "when": "view == connect.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "connect.openBoard",
+          "when": "view == connect.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "connect.refresh",
+          "when": "view == connect.sidebar",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Connect",
+      "properties": {
+        "connect.relayUrl": {
+          "type": "string",
+          "default": "wss://connectrelay-production.up.railway.app/ws",
+          "description": "WebSocket URL for the Connect relay"
+        },
+        "connect.displayName": {
+          "type": "string",
+          "default": "",
+          "description": "Display name shown to the other player (blank = hostname)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run build",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "pnpm build --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "pnpm build && npx --yes @vscode/vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.18.0",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  }
+}
