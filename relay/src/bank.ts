@@ -6,7 +6,7 @@ import { evmChain, rpcCandidates, treasuryHome } from "./chains.js";
 /** USDC on Base. Kept for the Base treasury address default. */
 export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 
-/** SessionTreasury on Base. One transfer funds many games. */
+/** ConnectTreasury on Base. One transfer funds many games. */
 export const DEPOSIT_ADDRESS = "0xE2ca5C8ed8589Dc61abE1B2c2Dae309d2f86410c" as const;
 
 /** $1.00 USDC, shown as the deposit example. Any amount sent is credited. */
@@ -76,7 +76,7 @@ export function logRanges(
 }
 
 export function depositAddress(): Address {
-  const raw = process.env.SESSION_TREASURY_ADDRESS?.trim();
+  const raw = process.env.CONNECT_TREASURY_ADDRESS?.trim();
   if (raw && isAddress(raw)) return raw;
   return DEPOSIT_ADDRESS;
 }

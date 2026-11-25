@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type WebSocket from "ws";
 import { RelayStore } from "./store.js";
-import type { ServerMessage, SessionId } from "./types.js";
+import type { ServerMessage, ConnectId } from "./types.js";
 
-const A = "sess_drawaaaa" as SessionId;
-const B = "sess_drawbbbb" as SessionId;
+const A = "conn_drawaaaa" as ConnectId;
+const B = "conn_drawbbbb" as ConnectId;
 
 function fakeSocket() {
   const sent: ServerMessage[] = [];

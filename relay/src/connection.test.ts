@@ -4,7 +4,7 @@ import { after, before, test } from "node:test";
 import { WebSocketServer } from "ws";
 import { RelayStore } from "./store.js";
 import WebSocket from "ws";
-import type { ClientMessage, ServerMessage, SessionIdentity } from "./types.js";
+import type { ClientMessage, ServerMessage, ConnectIdentity } from "./types.js";
 
 function once(ws: WebSocket, type: ServerMessage["type"], timeoutMs = 3000): Promise<ServerMessage> {
   return new Promise((resolve, reject) => {
@@ -52,15 +52,15 @@ after(async () => {
   });
 });
 
-test("two sessions join a room and ping", async () => {
-  const aId = "sess_aaa11111" as const;
-  const bId = "sess_bbb22222" as const;
-  const aIdentity: SessionIdentity = {
+test("two players join a room and ping", async () => {
+  const aId = "conn_aaa11111" as const;
+  const bId = "conn_bbb22222" as const;
+  const aIdentity: ConnectIdentity = {
     id: aId,
     displayName: "alice",
     host: "cursor",
   };
-  const bIdentity: SessionIdentity = {
+  const bIdentity: ConnectIdentity = {
     id: bId,
     displayName: "bob",
     host: "claude",
@@ -100,8 +100,8 @@ test("two sessions join a room and ping", async () => {
 });
 
 test("lobby challenge without a room starts a match", async () => {
-  const aId = "sess_eee55555" as const;
-  const bId = "sess_fff66666" as const;
+  const aId = "conn_eee55555" as const;
+  const bId = "conn_fff66666" as const;
 
   const a = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const b = new WebSocket(`ws://127.0.0.1:${port}/ws`);
@@ -131,8 +131,8 @@ test("lobby challenge without a room starts a match", async () => {
 });
 
 test("challenge starts a chess match", async () => {
-  const aId = "sess_ccc33333" as const;
-  const bId = "sess_ddd44444" as const;
+  const aId = "conn_ccc33333" as const;
+  const bId = "conn_ddd44444" as const;
 
   const a = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const b = new WebSocket(`ws://127.0.0.1:${port}/ws`);
@@ -174,9 +174,9 @@ test("challenge starts a chess match", async () => {
   b.close();
 });
 
-test("next pairs a waiting session without a room", async () => {
-  const aId = "sess_nextaaaa" as const;
-  const bId = "sess_nextbbbb" as const;
+test("next pairs a waiting player without a room", async () => {
+  const aId = "conn_nextaaaa" as const;
+  const bId = "conn_nextbbbb" as const;
   const a = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const b = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   await Promise.all([

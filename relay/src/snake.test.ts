@@ -11,10 +11,10 @@ import {
   setSnakeHeading,
   tickSnake,
 } from "./snake.js";
-import type { ServerMessage, SessionId } from "./types.js";
+import type { ServerMessage, ConnectId } from "./types.js";
 
-const A = "sess_aaa11111" as SessionId;
-const B = "sess_bbb22222" as SessionId;
+const A = "conn_aaa11111" as ConnectId;
+const B = "conn_bbb22222" as ConnectId;
 
 function arena() {
   const state = createSnakeMatch("ROOM", () => 0);
@@ -241,7 +241,7 @@ test("players who skip the room code share the open arena", () => {
   for (const [sock, id, name] of [
     [ada, A, "ada"],
     [bob, B, "bob"],
-    [cam, "sess_ccc33333", "cam"],
+    [cam, "conn_ccc33333", "cam"],
   ] as const) {
     store.handle(
       sock.ws,

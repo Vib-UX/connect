@@ -4,12 +4,12 @@ import type WebSocket from "ws";
 import { PlayBank, STAKE_USDC } from "./bank.js";
 import { MemoryEscrow, STAKE_USDT, SUGGESTED_DEPOSIT_USDT, formatUsdt, parseStake } from "./escrow.js";
 import { RelayStore } from "./store.js";
-import type { ServerMessage, SessionId } from "./types.js";
+import type { ServerMessage, ConnectId } from "./types.js";
 
 const ADA = `0x${"11".repeat(20)}` as const;
 const BOB = `0x${"22".repeat(20)}` as const;
-const A = "sess_escrow_a" as SessionId;
-const B = "sess_escrow_b" as SessionId;
+const A = "conn_escrow_a" as ConnectId;
+const B = "conn_escrow_b" as ConnectId;
 
 function fakeSocket() {
   const sent: ServerMessage[] = [];
@@ -91,6 +91,14 @@ test("a 0.1 escrow balance covers many 0.001 staked matches without another depo
   assert.equal(escrow.settles.length, 1);
   assert.equal(escrow.settles[0]?.betId, match1.matchId);
   assert.equal(escrow.settles[0]?.outcome, "b_wins");
+  const winnerSock = winner === A ? ada : bob;
+  const loserSock = loser === A ? ada : bob;
+  const won = last(winnerSock.sent, "bank").bank;
+  const lost = last(loserSock.sent, "bank").bank;
+  assert.equal(won.ledger[0]?.line, "Won $0.001 on BNB testnet.");
+  assert.match(won.ledger[0]?.href ?? "", /testnet\.bscscan\.com\/tx\/0x2222/);
+  assert.equal(lost.ledger[0]?.line, "Lost $0.001 on BNB testnet.");
+  assert.equal(lost.ledger[0]?.href, won.ledger[0]?.href);
   assert.equal(bank.balanceOf(ADA, 8453), 0n);
   assert.equal(bank.balanceOf(BOB, 10), 0n);
 

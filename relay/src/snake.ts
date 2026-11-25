@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { SessionId, SnakeDir, SnakePlayer, SnakePoint, SnakeState } from "./types.js";
+import type { ConnectId, SnakeDir, SnakePlayer, SnakePoint, SnakeState } from "./types.js";
 
 export const SNAKE_WIDTH = 48;
 export const SNAKE_HEIGHT = 48;
@@ -151,7 +151,7 @@ function clearPelletsUnder(state: SnakeState, cells: SnakePoint[]): void {
 
 export function joinSnake(
   state: SnakeState,
-  id: SessionId,
+  id: ConnectId,
   name: string,
   now: number,
   rng: () => number = Math.random,
@@ -195,7 +195,7 @@ export function joinSnake(
 
 export function setSnakeHeading(
   state: SnakeState,
-  id: SessionId,
+  id: ConnectId,
   dir: SnakeDir,
   boost = false,
 ): void {
@@ -222,7 +222,7 @@ function kill(state: SnakeState, player: SnakePlayer, now: number): void {
   }
 }
 
-function blocked(state: SnakeState, x: number, y: number, selfId: SessionId): boolean {
+function blocked(state: SnakeState, x: number, y: number, selfId: ConnectId): boolean {
   for (const player of state.players) {
     if (!player.alive) continue;
     const last = Math.max(0, player.body.length - 1);
@@ -307,7 +307,7 @@ function respawn(state: SnakeState, now: number, rng: () => number): void {
   }
 }
 
-function scoreRows(state: SnakeState): { id: SessionId; name: string; score: number }[] {
+function scoreRows(state: SnakeState): { id: ConnectId; name: string; score: number }[] {
   return [...state.players]
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .map((player) => ({ id: player.id, name: player.name, score: player.score }));
@@ -354,7 +354,7 @@ export function tickSnake(state: SnakeState, now = Date.now(), rng: () => number
 }
 
 /** Drop a player. Returns `remove` when the arena has nobody left. */
-export function disconnectSnake(state: SnakeState, id: SessionId, now: number): "remove" | "ok" {
+export function disconnectSnake(state: SnakeState, id: ConnectId, now: number): "remove" | "ok" {
   const player = state.players.find((p) => p.id === id);
   if (!player || !player.connected) return "ok";
   if (state.status !== "active") {

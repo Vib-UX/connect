@@ -1,7 +1,7 @@
 import { isAddress, type Address, type Chain } from "viem";
 import { base, bsc, bscTestnet, mainnet, optimism } from "viem/chains";
 
-/** SessionTreasury on Base. */
+/** ConnectTreasury on Base. */
 const BASE_TREASURY = "0xE2ca5C8ed8589Dc61abE1B2c2Dae309d2f86410c";
 
 /** USDT on BNB Smart Chain. ConnectEscrow holds player balances in this token. */
@@ -19,11 +19,11 @@ export const USDC: Record<number, Address> = {
 
 /**
  * Treasury deployed on Ethereum. Empty until DeployTreasuryEthereum lands.
- * SESSION_TREASURY_ETHEREUM overrides this.
+ * CONNECT_TREASURY_ETHEREUM overrides this.
  */
 export const ETHEREUM_TREASURY = "" as Address | "";
 
-/** Treasury on Optimism. SESSION_TREASURY_OPTIMISM overrides this. */
+/** Treasury on Optimism. CONNECT_TREASURY_OPTIMISM overrides this. */
 export const OPTIMISM_TREASURY = "0x2aa139d40b57560EE8bAa94325cfdc5a7721DE3f" as Address;
 
 export function evmChain(chainId: number): Chain {
@@ -99,7 +99,7 @@ export function escrowUsdtAddress(): Address | null {
 /** A chain the player can deposit on. Claim on any mainnet can still be paid from one of these. */
 export function treasuryHome(chainId: number): TreasuryHome | null {
   if (chainId === 8453) {
-    const address = addressFrom("SESSION_TREASURY_ADDRESS", BASE_TREASURY);
+    const address = addressFrom("CONNECT_TREASURY_ADDRESS", BASE_TREASURY);
     if (!address) return null;
     return {
       chainId,
@@ -111,7 +111,7 @@ export function treasuryHome(chainId: number): TreasuryHome | null {
     };
   }
   if (chainId === 10) {
-    const address = addressFrom("SESSION_TREASURY_OPTIMISM", OPTIMISM_TREASURY);
+    const address = addressFrom("CONNECT_TREASURY_OPTIMISM", OPTIMISM_TREASURY);
     if (!address) return null;
     return {
       chainId,
@@ -123,7 +123,7 @@ export function treasuryHome(chainId: number): TreasuryHome | null {
     };
   }
   if (chainId === 1) {
-    const address = addressFrom("SESSION_TREASURY_ETHEREUM", ETHEREUM_TREASURY);
+    const address = addressFrom("CONNECT_TREASURY_ETHEREUM", ETHEREUM_TREASURY);
     if (!address) return null;
     return {
       chainId,

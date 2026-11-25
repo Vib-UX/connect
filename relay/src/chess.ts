@@ -1,13 +1,13 @@
 import { Chess } from "chess.js";
 import { randomBytes } from "node:crypto";
-import type { ChessState, GameResult, SessionId } from "./types.js";
+import type { ChessState, GameResult, ConnectId } from "./types.js";
 
 export const DEFAULT_CLOCK_MS = 2 * 60 * 1000;
 
 export function createMatch(
   roomCode: string,
-  a: SessionId,
-  b: SessionId,
+  a: ConnectId,
+  b: ConnectId,
   stakeWei = "0",
   opening?: { whiteIsA: boolean; word: string },
 ): ChessState {
@@ -55,7 +55,7 @@ function deductClock(match: ChessState): ChessState {
   };
 }
 
-export function applyMove(match: ChessState, player: SessionId, uci: string): ChessState {
+export function applyMove(match: ChessState, player: ConnectId, uci: string): ChessState {
   let next = deductClock(match);
   if (next.status === "finished") return next;
   if (next.status !== "active") throw new Error("Match is not active");
@@ -94,7 +94,7 @@ export function applyMove(match: ChessState, player: SessionId, uci: string): Ch
   return next;
 }
 
-export function applyResign(match: ChessState, player: SessionId): ChessState {
+export function applyResign(match: ChessState, player: ConnectId): ChessState {
   if (match.status === "finished") return match;
   const winner = player === match.white ? match.black : match.white;
   return {

@@ -44,12 +44,12 @@ import type {
   PresenceSnapshot,
   RoomInfo,
   ServerMessage,
-  SessionId,
+  ConnectId,
   BankView,
   FlappyView,
   PayoutReceipt,
   RematchOffer,
-  SessionIdentity,
+  ConnectIdentity,
   SnakeDir,
   SnakeState,
   StakeTransfer,
@@ -57,13 +57,13 @@ import type {
 
 interface Conn {
   ws: WebSocket;
-  identity: SessionIdentity | null;
+  identity: ConnectIdentity | null;
   roomCode: string | null;
   lastSeen: number;
 }
 
 interface FlappySeat {
-  id: SessionId;
+  id: ConnectId;
   name: string;
   score: number | null;
 }
@@ -74,23 +74,23 @@ interface FlappyContest {
   status: "playing" | "done";
   a: FlappySeat;
   b: FlappySeat;
-  winner: SessionId | "draw" | null;
+  winner: ConnectId | "draw" | null;
   /** USDT units locked in ConnectEscrow. "0" means no escrow lock. */
   stake: string;
 }
 
 interface PendingDraw {
   pairId: `0x${string}`;
-  first: SessionId;
-  second: SessionId;
+  first: ConnectId;
+  second: ConnectId;
   roomCode: string;
   at: number;
 }
 
 interface RematchWait {
   game: "chess" | "flappy";
-  from: SessionId;
-  to: SessionId;
+  from: ConnectId;
+  to: ConnectId;
   at: number;
 }
 
@@ -113,9 +113,10 @@ export type StakeSend = (input: {
 
 export class RelayStore {
   private readonly bank: PlayBank;
-  private readonly transfers = new Map<SessionId, StakeTransfer>();
-  private readonly payouts = new Map<SessionId, PayoutReceipt>();
-  private readonly notes = new Map<SessionId, string>();
+  private readonly transfers = new Map<ConnectId, StakeTransfer>();
+  private readonly ledgers = new Map<ConnectId, StakeTransfer[]>();
+  private readonly payouts = new Map<ConnectId, PayoutReceipt>();
+  private readonly notes = new Map<ConnectId, string>();
   private readonly settled = new Set<string>();
 
   constructor(
@@ -147,18 +148,18 @@ export class RelayStore {
   }
 
   private conns = new Map<WebSocket, Conn>();
-  private byId = new Map<SessionId, Conn>();
+  private byId = new Map<ConnectId, Conn>();
   private rooms = new Map<string, RoomInfo>();
   private pings: PingMessage[] = [];
   private matches = new Map<string, ChessState>();
   private snakes = new Map<string, SnakeState>();
   private snakeByRoom = new Map<string, string>();
-  /** FIFO of sessions that pressed Next and are waiting for a partner. */
-  private queue: SessionId[] = [];
-  /** FIFO of sessions waiting to fly a flappy round against one other player. */
-  private flappyQueue: SessionId[] = [];
+  /** FIFO of players that pressed Next and are waiting for a partner. */
+  private queue: ConnectId[] = [];
+  /** FIFO of players waiting to fly a flappy round against one other player. */
+  private flappyQueue: ConnectId[] = [];
   private flappies = new Map<string, FlappyContest>();
-  private flappyByPlayer = new Map<SessionId, string>();
+  private flappyByPlayer = new Map<ConnectId, string>();
   private pending = new Map<`0x${string}`, PendingDraw>();
   private rematches = new Map<string, RematchWait>();
   challenges = new Map<string, ChallengeInfo>();
@@ -379,11 +380,12 @@ export class RelayStore {
     }
   }
 
-  private onHello(conn: Conn, identity: SessionIdentity): void {
+  private onHello(conn: Conn, identity: ConnectIdentity): void {
     const existing = this.byId.get(identity.id);
     if (existing && existing !== conn) {
       try {
-        existing.ws.close();
+        // 4000 tells the old client it was replaced, so it does not reconnect and kick this one.
+        existing.ws.close(4000, "replaced");
       } catch {
         /* ignore */
       }
@@ -491,7 +493,7 @@ export class RelayStore {
     return id ? this.snakes.get(id) : undefined;
   }
 
-  private dropSnakePlayer(id: SessionId): void {
+  private dropSnakePlayer(id: ConnectId): void {
     for (const [matchId, match] of this.snakes) {
       if (!match.players.some((player) => player.id === id)) continue;
       const outcome = disconnectSnake(match, id, Date.now());
@@ -536,7 +538,7 @@ export class RelayStore {
 
   private broadcastSnake(match: SnakeState): void {
     const raw = JSON.stringify({ type: "snake", match } satisfies ServerMessage);
-    const ids = new Set<SessionId>(match.players.map((player) => player.id));
+    const ids = new Set<ConnectId>(match.players.map((player) => player.id));
     const room = this.rooms.get(match.roomCode);
     if (room) for (const id of room.members) ids.add(id);
     for (const id of ids) {
@@ -545,7 +547,7 @@ export class RelayStore {
     }
   }
 
-  private onPing(conn: Conn, to: SessionId, text: string): void {
+  private onPing(conn: Conn, to: ConnectId, text: string): void {
     if (!conn.identity) throw new Error("Say hello first");
     const target = this.byId.get(to);
     if (!target?.identity) throw new Error("Peer offline");
@@ -563,7 +565,7 @@ export class RelayStore {
     this.send(target.ws, { type: "ping", message });
   }
 
-  private onChallenge(conn: Conn, to: SessionId, stakeWei: string): void {
+  private onChallenge(conn: Conn, to: ConnectId, stakeWei: string): void {
     if (!conn.identity) throw new Error("Say hello first");
     this.assertDeposit(conn);
     const target = this.byId.get(to);
@@ -713,7 +715,7 @@ export class RelayStore {
     this.cancelDraw(me, "");
 
     const active = this.activeMatch(conn);
-    let avoid: SessionId | null = null;
+    let avoid: ConnectId | null = null;
     if (active) {
       avoid = active.white === me ? active.black : active.white;
       const finished = applyResign(active, me);
@@ -789,15 +791,15 @@ export class RelayStore {
     return null;
   }
 
-  private othersWaiting(me: SessionId): number {
+  private othersWaiting(me: ConnectId): number {
     return this.queue.filter((id) => id !== me).length;
   }
 
   private drawsOn(): boolean {
-    return this.options?.draw ?? Boolean(process.env.SESSION_MATCH_DRAW_ADDRESS?.trim());
+    return this.options?.draw ?? Boolean(process.env.CONNECT_MATCH_DRAW_ADDRESS?.trim());
   }
 
-  private drawingFor(id: SessionId): boolean {
+  private drawingFor(id: ConnectId): boolean {
     for (const draw of this.pending.values()) {
       if (draw.first === id || draw.second === id) return true;
     }
@@ -864,7 +866,7 @@ export class RelayStore {
     return ready;
   }
 
-  private cancelDraw(id: SessionId, message: string): void {
+  private cancelDraw(id: ConnectId, message: string): void {
     for (const [pairId, draw] of this.pending) {
       if (draw.first !== id && draw.second !== id) continue;
       this.pending.delete(pairId);
@@ -920,13 +922,13 @@ export class RelayStore {
     this.broadcastMatch(next);
   }
 
-  private flappyFor(id: SessionId): FlappyContest | null {
+  private flappyFor(id: ConnectId): FlappyContest | null {
     const contestId = this.flappyByPlayer.get(id);
     if (!contestId) return null;
     return this.flappies.get(contestId) ?? null;
   }
 
-  private flappyView(id: SessionId): FlappyView | null {
+  private flappyView(id: ConnectId): FlappyView | null {
     if (this.flappyQueue.includes(id)) {
       return {
         id: "",
@@ -1048,7 +1050,7 @@ export class RelayStore {
     if (other) this.sendFlappy(other);
   }
 
-  private abandonFlappy(id: SessionId): void {
+  private abandonFlappy(id: ConnectId): void {
     this.flappyQueue = this.flappyQueue.filter((queued) => queued !== id);
     const contest = this.flappyFor(id);
     this.flappyByPlayer.delete(id);
@@ -1136,7 +1138,7 @@ export class RelayStore {
     }
   }
 
-  private balanceUsdFor(id: SessionId): string | null {
+  private balanceUsdFor(id: ConnectId): string | null {
     const identity = this.byId.get(id)?.identity;
     if (!identity?.walletAddress) return null;
     if (this.usesEscrow()) {
@@ -1183,12 +1185,12 @@ export class RelayStore {
     });
   }
 
-  private rematchKey(game: "chess" | "flappy", a: SessionId, b: SessionId): string {
+  private rematchKey(game: "chess" | "flappy", a: ConnectId, b: ConnectId): string {
     const [x, y] = [a, b].sort();
     return `${game}:${x}:${y}`;
   }
 
-  private rematchView(id: SessionId): RematchOffer | null {
+  private rematchView(id: ConnectId): RematchOffer | null {
     let found: RematchWait | null = null;
     for (const offer of this.rematches.values()) {
       if (offer.from !== id && offer.to !== id) continue;
@@ -1204,13 +1206,13 @@ export class RelayStore {
     };
   }
 
-  private sendRematch(id: SessionId, offer: RematchOffer | null): void {
+  private sendRematch(id: ConnectId, offer: RematchOffer | null): void {
     const conn = this.byId.get(id);
     if (conn) this.send(conn.ws, { type: "rematch", offer });
   }
 
   /** Drop a pending rematch when this player leaves, queues, or finds someone else. */
-  private dropRematch(id: SessionId): void {
+  private dropRematch(id: ConnectId): void {
     for (const [key, offer] of this.rematches) {
       if (offer.from !== id && offer.to !== id) continue;
       this.rematches.delete(key);
@@ -1326,13 +1328,13 @@ export class RelayStore {
     this.sendRematch(opponentId, this.rematchView(opponentId));
   }
 
-  private chessOpponent(conn: Conn): SessionId | null {
+  private chessOpponent(conn: Conn): ConnectId | null {
     const match = this.matchFor(conn);
     if (!match || match.status !== "finished" || !conn.identity) return null;
     return match.white === conn.identity.id ? match.black : match.white;
   }
 
-  private flappyOpponent(id: SessionId): SessionId | null {
+  private flappyOpponent(id: ConnectId): ConnectId | null {
     const contest = this.flappyFor(id);
     if (!contest || contest.status !== "done") return null;
     return contest.a.id === id ? contest.b.id : contest.a.id;
@@ -1358,12 +1360,12 @@ export class RelayStore {
    * `seatA` / `seatB` are the wallets locked as playerA / playerB on the contract.
    */
   private moveStake(
-    winnerId: SessionId,
-    loserId: SessionId,
+    winnerId: ConnectId,
+    loserId: ConnectId,
     key: string,
     stakeRaw?: string,
-    seatA?: SessionId,
-    seatB?: SessionId,
+    seatA?: ConnectId,
+    seatB?: ConnectId,
   ): void {
     if (this.settled.has(key)) return;
     this.settled.add(key);
@@ -1386,7 +1388,7 @@ export class RelayStore {
         winnerWallet &&
         this.bank.take(loserWallet, winnerWallet, STAKE_USDC, fromId, toId),
     );
-    const you = (id: SessionId): StakeTransfer["you"] => {
+    const you = (id: ConnectId): StakeTransfer["you"] => {
       if (!moved) return "short";
       return id === winnerId ? "won" : "lost";
     };
@@ -1411,11 +1413,11 @@ export class RelayStore {
   /** Credit the pot on ConnectEscrow from the relay result. */
   private settleEscrow(
     key: string,
-    seatA: SessionId,
-    seatB: SessionId,
+    seatA: ConnectId,
+    seatB: ConnectId,
     stakeRaw: string,
     outcome: EscrowOutcome | "draw",
-    winnerId?: SessionId,
+    winnerId?: ConnectId,
   ): void {
     if (outcome === "draw") {
       if (this.settled.has(key)) return;
@@ -1439,15 +1441,18 @@ export class RelayStore {
         for (const id of [seatA, seatB]) {
           const lineYou: StakeTransfer["you"] =
             resolved === "draw" ? "won" : id === winnerId ? "won" : "lost";
-          this.transfers.set(id, {
+          const line =
+            resolved === "draw"
+              ? `Draw. ${STAKE_USD} returned on ${chainName}.`
+              : lineYou === "won"
+                ? `Won ${STAKE_USD} on ${chainName}.`
+                : `Lost ${STAKE_USD} on ${chainName}.`;
+          this.rememberSettlement(id, {
             id: key,
             you: lineYou,
             fromChain: chainName,
             toChain: chainName,
-            line:
-              resolved === "draw"
-                ? `Draw. ${STAKE_USD} returned on ${chainName}.`
-                : transferLine(lineYou, chainName, chainName, href),
+            line,
             href,
           });
           this.notes.set(
@@ -1486,14 +1491,26 @@ export class RelayStore {
     }
   }
 
+  private rememberSettlement(id: ConnectId, row: StakeTransfer): void {
+    const prev = this.ledgers.get(id) ?? [];
+    this.ledgers.set(id, [row, ...prev.filter((item) => item.id !== row.id)].slice(0, 12));
+    this.transfers.set(id, row);
+  }
+
   private rewriteStake(key: string, fromChain: string, toChain: string, href: string | null, note: string): void {
     for (const [id, row] of this.transfers) {
       if (row.id !== key) continue;
-      this.transfers.set(id, {
+      const next = {
         ...row,
         href,
         line: transferLine(row.you, fromChain, toChain, href),
-      });
+      };
+      this.transfers.set(id, next);
+      const history = this.ledgers.get(id) ?? [];
+      this.ledgers.set(
+        id,
+        history.map((item) => (item.id === key ? next : item)),
+      );
       this.notes.set(id, note);
       const conn = this.byId.get(id);
       if (conn) this.sendBank(conn);
@@ -1517,6 +1534,7 @@ export class RelayStore {
         canPlay: units >= STAKE_USDT,
         claimLabel: units > 0n ? `Withdraw ${formatUsdt(units)}` : "Withdraw",
         transfer: id ? (this.transfers.get(id) ?? null) : null,
+        ledger: id ? (this.ledgers.get(id) ?? []) : [],
         payout: id ? (this.payouts.get(id) ?? null) : null,
         note: id ? (this.notes.get(id) ?? "") : "",
       };
@@ -1535,6 +1553,7 @@ export class RelayStore {
       canPlay: units >= STAKE_USDC,
       claimLabel: units > 0n ? `Claim ${formatUsdc(units)}` : "Claim",
       transfer: id ? (this.transfers.get(id) ?? null) : null,
+      ledger: id ? (this.ledgers.get(id) ?? []) : [],
       payout: id ? (this.payouts.get(id) ?? null) : null,
       note: id ? (this.notes.get(id) ?? "") : "",
     };

@@ -6,14 +6,14 @@ import test from "node:test";
 import type WebSocket from "ws";
 import { PlayBank, STAKE_USDC, ccipHref, depositFromBlock, formatUsdc, logRanges, logSpan, payoutReceipt, stakeChain, transferLine, txHref } from "./bank.js";
 import { RelayStore } from "./store.js";
-import type { ServerMessage, SessionId } from "./types.js";
+import type { ServerMessage, ConnectId } from "./types.js";
 
 const ADA = `0x${"11".repeat(20)}` as const;
 const BOB = `0x${"22".repeat(20)}` as const;
 const ADA_TX = `0x${"ab".repeat(32)}`;
 const BOB_TX = `0x${"cd".repeat(32)}`;
-const A = "sess_bank_a" as SessionId;
-const B = "sess_bank_b" as SessionId;
+const A = "conn_bank_a" as ConnectId;
+const B = "conn_bank_b" as ConnectId;
 
 function fakeSocket() {
   const sent: ServerMessage[] = [];
@@ -147,7 +147,7 @@ test("a Base balance does not include an Optimism deposit", () => {
 });
 
 test("the bank file remembers a deposit across opens", () => {
-  const dir = mkdtempSync(join(tmpdir(), "session-bank-"));
+  const dir = mkdtempSync(join(tmpdir(), "connect-bank-"));
   const file = join(dir, "bank.json");
   const first = PlayBank.open(file);
   first.credit(ADA, ADA_TX, 1_000_000n);

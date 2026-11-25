@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createPublicClient, encodeAbiParameters, http, keccak256, parseAbiItem, stringToBytes } from "viem";
 import { base } from "viem/chains";
-import type { SessionId } from "./types.js";
+import type { ConnectId } from "./types.js";
 
 const fulfilled = parseAbiItem(
   "event DrawFulfilled(bytes32 indexed pairId, uint256 indexed requestId, uint256 word, bool whiteIsFirst)",
@@ -10,17 +10,17 @@ const fulfilled = parseAbiItem(
 let cursor: bigint | undefined;
 
 export function matchDrawAddress(): `0x${string}` | null {
-  const raw = process.env.SESSION_MATCH_DRAW_ADDRESS?.trim();
+  const raw = process.env.CONNECT_MATCH_DRAW_ADDRESS?.trim();
   if (!raw || !/^0x[a-fA-F0-9]{40}$/.test(raw)) return null;
   return raw as `0x${string}`;
 }
 
-/** keccak256 of the raw session id. The workflow hashes the same way. */
-export function sessionHash(id: string): `0x${string}` {
+/** keccak256 of the raw connect id. The workflow hashes the same way. */
+export function connectHash(id: string): `0x${string}` {
   return keccak256(stringToBytes(id));
 }
 
-export function makePairId(first: SessionId, second: SessionId): `0x${string}` {
+export function makePairId(first: ConnectId, second: ConnectId): `0x${string}` {
   return keccak256(
     encodeAbiParameters(
       [{ type: "string" }, { type: "string" }, { type: "uint256" }],
@@ -34,14 +34,14 @@ export function whiteIsFirst(word: bigint): boolean {
   return word % 2n === 0n;
 }
 
-export function kickWorkflow(body: { pairId: `0x${string}`; first: SessionId; second: SessionId }): void {
+export function kickWorkflow(body: { pairId: `0x${string}`; first: ConnectId; second: ConnectId }): void {
   if (process.env.CRE_SIMULATE !== "1") return;
   const payload = JSON.stringify({
     pairId: body.pairId,
     first: body.first,
     second: body.second,
-    firstHash: sessionHash(body.first),
-    secondHash: sessionHash(body.second),
+    firstHash: connectHash(body.first),
+    secondHash: connectHash(body.second),
   });
   const child = spawn(
     "cre",

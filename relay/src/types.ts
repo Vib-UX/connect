@@ -1,8 +1,8 @@
 export type HostKind = "cursor" | "claude" | "web";
-export type SessionId = `sess_${string}`;
+export type ConnectId = `conn_${string}`;
 
-export interface SessionIdentity {
-  id: SessionId;
+export interface ConnectIdentity {
+  id: ConnectId;
   displayName: string;
   host: HostKind;
   ensName?: string;
@@ -11,7 +11,7 @@ export interface SessionIdentity {
 }
 
 export interface PeerInfo {
-  id: SessionId;
+  id: ConnectId;
   displayName: string;
   host: HostKind;
   nearby: boolean;
@@ -24,9 +24,9 @@ export interface PeerInfo {
 
 export interface PingMessage {
   id: string;
-  from: SessionId;
+  from: ConnectId;
   fromName: string;
-  to: SessionId;
+  to: ConnectId;
   text: string;
   at: number;
 }
@@ -34,14 +34,14 @@ export interface PingMessage {
 export type ChessColor = "w" | "b";
 
 export type GameResult =
-  | { kind: "win"; winner: SessionId; reason: "checkmate" | "resign" | "timeout" }
+  | { kind: "win"; winner: ConnectId; reason: "checkmate" | "resign" | "timeout" }
   | { kind: "draw"; reason: "stalemate" | "agreement" | "timeout" };
 
 export interface ChessState {
   matchId: string;
   roomCode: string;
-  white: SessionId;
-  black: SessionId;
+  white: ConnectId;
+  black: ConnectId;
   fen: string;
   turn: ChessColor;
   clocksMs: { w: number; b: number };
@@ -58,16 +58,16 @@ export interface ChessState {
 
 export interface RoomInfo {
   code: string;
-  members: SessionId[];
+  members: ConnectId[];
   createdAt: number;
   matchId: string | null;
 }
 
 export interface ChallengeInfo {
   id: string;
-  from: SessionId;
+  from: ConnectId;
   fromName: string;
-  to: SessionId;
+  to: ConnectId;
   stakeWei: string;
   createdAt: number;
   expiresAt: number;
@@ -81,7 +81,7 @@ export interface SnakePoint {
 }
 
 export interface SnakePlayer {
-  id: SessionId;
+  id: ConnectId;
   name: string;
   color: string;
   body: SnakePoint[];
@@ -103,9 +103,9 @@ export interface SnakePellet {
 
 export interface SnakeResult {
   kind: "win" | "draw";
-  winner?: SessionId;
+  winner?: ConnectId;
   reason: "score" | "last";
-  scores: { id: SessionId; name: string; score: number }[];
+  scores: { id: ConnectId; name: string; score: number }[];
 }
 
 /** Realtime arena shared by everyone in a room. */
@@ -125,13 +125,13 @@ export interface SnakeState {
 }
 
 export type ClientMessage =
-  | { type: "hello"; identity: SessionIdentity }
+  | { type: "hello"; identity: ConnectIdentity }
   | { type: "heartbeat" }
   | { type: "create_room" }
   | { type: "join_room"; code: string }
   | { type: "leave_room" }
-  | { type: "ping"; to: SessionId; text: string }
-  | { type: "challenge"; to: SessionId; stakeWei?: string }
+  | { type: "ping"; to: ConnectId; text: string }
+  | { type: "challenge"; to: ConnectId; stakeWei?: string }
   | { type: "respond_challenge"; challengeId: string; accept: boolean }
   | { type: "move"; matchId: string; uci: string }
   | { type: "resign"; matchId: string }
@@ -150,9 +150,9 @@ export type ClientMessage =
 
 export interface RematchOffer {
   game: "chess" | "flappy";
-  from: SessionId;
+  from: ConnectId;
   fromName: string;
-  to: SessionId;
+  to: ConnectId;
   /** True for the player who asked and is waiting for the other. */
   waiting: boolean;
 }
@@ -203,13 +203,15 @@ export interface BankView {
   canPlay: boolean;
   claimLabel: string;
   transfer: StakeTransfer | null;
-  /** Last claim. The session shows this link under the chess board. */
+  /** Settlement results, newest first. Each row is one match and its transaction. */
+  ledger: StakeTransfer[];
+  /** Last claim. The client shows this link under the chess board. */
   payout: PayoutReceipt | null;
   note: string;
 }
 
 export type ServerMessage =
-  | { type: "welcome"; identity: SessionIdentity; peers: PeerInfo[]; room: RoomInfo | null }
+  | { type: "welcome"; identity: ConnectIdentity; peers: PeerInfo[]; room: RoomInfo | null }
   | { type: "peers"; peers: PeerInfo[] }
   | { type: "room"; room: RoomInfo | null }
   | { type: "ping"; message: PingMessage }
