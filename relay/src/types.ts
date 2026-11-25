@@ -8,6 +8,8 @@ export interface ConnectIdentity {
   ensName?: string;
   walletAddress?: `0x${string}`;
   chainId?: number;
+  /** Same value for every socket of one person on one machine. */
+  owner?: string;
 }
 
 export interface PeerInfo {
@@ -20,6 +22,7 @@ export interface PeerInfo {
   lastSeen: number;
   /** True when this peer has hit Next and is waiting for a match. */
   waiting?: boolean;
+  owner?: string;
 }
 
 export interface PingMessage {

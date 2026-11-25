@@ -1436,6 +1436,11 @@ export class RelayStore {
         }
         const chainName = escrowLabel();
         const href = txHref(chainName, paid.txHash);
+        const chess = this.matches.get(key);
+        if (chess) {
+          chess.payoutTx = paid.txHash;
+          this.broadcastMatch(chess);
+        }
         for (const id of [seatA, seatB]) {
           const lineYou: StakeTransfer["you"] =
             resolved === "draw" ? "won" : id === winnerId ? "won" : "lost";
@@ -1571,9 +1576,23 @@ export class RelayStore {
   }
 
   private peerList(): PeerInfo[] {
-    const list: PeerInfo[] = [];
+    const groups = new Map<string, Conn[]>();
     for (const conn of this.byId.values()) {
       if (!conn.identity) continue;
+      const key = conn.identity.owner || conn.identity.id;
+      const members = groups.get(key) ?? [];
+      members.push(conn);
+      groups.set(key, members);
+    }
+    const list: PeerInfo[] = [];
+    for (const members of groups.values()) {
+      const ranked = [...members].sort((a, b) => {
+        const room = Number(Boolean(b.roomCode)) - Number(Boolean(a.roomCode));
+        if (room) return room;
+        return b.lastSeen - a.lastSeen;
+      });
+      const conn = ranked[0];
+      if (!conn?.identity) continue;
       list.push({
         id: conn.identity.id,
         displayName: conn.identity.displayName,
@@ -1582,7 +1601,8 @@ export class RelayStore {
         roomCode: conn.roomCode,
         ensName: conn.identity.ensName,
         lastSeen: conn.lastSeen,
-        waiting: this.queue.includes(conn.identity.id),
+        waiting: members.some((member) => member.identity && this.queue.includes(member.identity.id)),
+        owner: conn.identity.owner,
       });
     }
     return list;
