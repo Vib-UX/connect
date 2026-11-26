@@ -1,8 +1,8 @@
 {
   "name": "connect-ide",
   "displayName": "Connect",
-  "description": "P2P play inside Cursor. Two people battle in the editor while their agents work. The winner gets token credits for the prompt.",
-  "version": "0.1.3",
+  "description": "P2P play inside an agentic IDE session. Two people battle in the editor while their agents work. The match locks a stake, and the relay game feed settles who is the winner.",
+  "version": "0.1.4",
   "publisher": "connect",
   "license": "MIT",
   "icon": "media/icon.png",

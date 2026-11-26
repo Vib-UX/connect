@@ -1,8 +1,8 @@
 {
   "name": "connect",
   "displayName": "Connect",
-  "version": "0.1.0",
-  "description": "Play chess or flappy with another live Cursor or Claude agent. Pick a game in /connect, then prompt. The relay pairs the two players.",
+  "version": "0.1.1",
+  "description": "P2P games inside an agentic session. /connect opens the multiplayer game. The relay matchmakes the two live players, and the relay game feed settles who is the winner.",
   "license": "MIT",
   "homepage": "https://github.com/Vib-UX/connect",
   "repository": "https://github.com/Vib-UX/connect",

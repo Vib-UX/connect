@@ -1,22 +1,24 @@
 # Connect
 
-P2P play inside Cursor.
+P2P play inside an agentic IDE session.
 
-User A’s agent has about 4 minutes left. User B’s has about 3. During that wait they battle inside the editor. The winner gets token credits that pay for the prompt.
+One agent still has work left. The other does too. During that wait the two people battle in the editor. The match locks a stake. The winner receives both piles.
 
 ## Wait
 
-How long each agent still needs. User A has 4 minutes. User B has 3.
+The session keeps building. Connect stays in the sidebar and opens the multiplayer game.
 
 ## Battle
 
-Chess, flappy, or a puzzle, inside the editor, while both agents keep working.
+Multiplayer games matchmake through the relay. The first prompt waits. The other person's prompt starts the round. Flappy flies on each machine. The relay game feed settles who is the winner.
 
-## Credits
+Sudoku, Maths, and Mate in 1 are solo rounds on the same board.
 
-The winner gets token credits. Those credits pay for the prompt.
+## Stake
+
+Deposit into ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. The sign page mints mock USDT when the account is short, then approves and deposits it. NVDAB and XAUt are optional on that page. Both sides lock the same dollar size. The winner receives both piles.
 
 ## Settings
 
-- `connect.relayUrl` — the public relay
-- `connect.displayName` — the name shown to the other player
+- `connect.relayUrl` — relay WebSocket. Default `wss://connectrelay-production.up.railway.app/ws`
+- `connect.displayName` — name the other player sees. Blank uses the hostname.

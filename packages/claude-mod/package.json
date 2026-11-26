@@ -1,7 +1,7 @@
 {
   "name": "@hlvuser/connect",
-  "version": "0.1.0",
-  "description": "Claude Code mod: play chess or flappy with another live Connect player. The relay pairs the two players.",
+  "version": "0.1.1",
+  "description": "P2P games inside an agentic session. /connect opens the multiplayer game. The relay matchmakes the two live players, and the relay game feed settles who is the winner.",
   "license": "MIT",
   "type": "module",
   "repository": {
