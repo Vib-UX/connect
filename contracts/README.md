@@ -2,6 +2,38 @@
 
 One contract on BNB Chain holds a USDT balance per player. A player deposits once. Each chess or Flappy match locks a stake from that balance. The relay reports the winner, and the contract adds the pot to that player's balance.
 
+```mermaid
+sequenceDiagram
+  participant A as Player A
+  participant B as Player B
+  participant Escrow as ConnectEscrow
+  participant Relay
+
+  A->>Escrow: deposit(0.1 USDT)
+  B->>Escrow: deposit(0.1 USDT)
+  Note over Escrow: balanceOf[A] = 0.1, balanceOf[B] = 0.1
+
+  Relay->>Escrow: lock(betId, A, B, 0.001)
+  Note over Escrow: each free balance is 0.099, and 0.001 from each side is locked
+
+  Note over Relay: Chess or Flappy names the winner
+
+  alt A wins
+    Relay->>Escrow: settle(betId, AWins)
+    Note over Escrow: balanceOf[A] += 0.002
+  else B wins
+    Relay->>Escrow: settle(betId, BWins)
+    Note over Escrow: balanceOf[B] += 0.002
+  else Draw
+    Relay->>Escrow: settle(betId, Draw)
+    Note over Escrow: each balance += 0.001
+  end
+
+  A->>Escrow: withdraw(free balance)
+  B->>Escrow: withdraw(free balance)
+  Note over Escrow: a locked stake stays until settle or refund
+```
+
 On BSC testnet the deposit is 0.1 USDT and the stake is 0.001 USDT. Both use 18 decimals.
 
 ## BSC testnet (chain id 97)
@@ -52,12 +84,43 @@ Each player deposits the share token they want to stake. A match locks one pile 
 
 ### Atlas workflow
 
-1. The owner calls `setSingleFeed(token, feed)` or `setMultiFeed(token, feed, feedId)`.
-2. Each player `deposit`s the token they want in the pot.
-3. `lock(betId, playerA, playerB, tokenA, tokenB, usdStake)` reads both feeds. `usdStake` is 18-decimal dollars per side. The share count is `usdStake * 10^tokenDecimals / (price * 10^(18 - priceDecimals))`. A zero answer, an empty MultiFeed word, or an update older than `maxPriceAge` reverts, and the counts freeze on the bet.
-4. Chess or Flappy names the winner. `settle(betId, AWins | BWins | Draw)` credits the frozen piles. A second settle reverts.
+`lock` is the only call that reads Atlas. A SingleFeed answers through `latestRoundData()`. A MultiFeed id answers through `fetchCompact` and [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). A zero answer, an empty MultiFeed word, or an update older than `maxPriceAge` reverts. The share count for each side is `usdStake * 10^tokenDecimals / (price * 10^(18 - priceDecimals))`. The fork test and the testnet deploy set `maxPriceAge` to 3 days. A second `settle` reverts.
 
-A SingleFeed is read with `latestRoundData()`. A MultiFeed id is read with `fetchCompact` and [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). The fork test and the testnet deploy set `maxPriceAge` to 3 days.
+```mermaid
+sequenceDiagram
+  participant Owner
+  participant A as Player A
+  participant B as Player B
+  participant Escrow as ShareEscrow
+  participant Atlas
+  participant Settler
+
+  Owner->>Escrow: setSingleFeed(NVDAB, feed)
+  Owner->>Escrow: setMultiFeed(TSLAB, feed, 0x000003a5)
+  A->>Escrow: deposit(NVDAB)
+  B->>Escrow: deposit(TSLAB)
+
+  Settler->>Escrow: lock(betId, A, B, NVDAB, TSLAB, $100)
+  Escrow->>Atlas: latestRoundData()
+  Atlas-->>Escrow: NVDAB = $200
+  Escrow->>Atlas: fetchCompact(0x000003a5)
+  Atlas-->>Escrow: TSLAB = $400
+  Note over Escrow: freeze 0.5 NVDAB and 0.25 TSLAB
+
+  Note over Settler: Chess or Flappy names the winner
+
+  alt A wins
+    Settler->>Escrow: settle(betId, AWins)
+    Note over Escrow: A is credited 0.5 NVDAB and 0.25 TSLAB
+  else B wins
+    Settler->>Escrow: settle(betId, BWins)
+    Note over Escrow: B is credited both piles
+  else Draw
+    Settler->>Escrow: settle(betId, Draw)
+    Note over Escrow: A gets 0.5 NVDAB back, B gets 0.25 TSLAB back
+  end
+  Note over Escrow: settle does not read Atlas
+```
 
 Nvidia against Tesla is the example in the clip. The same calls work for any pair of registered share tokens. On BSC testnet the registered pair is NVDAB/USD and XAU/USD, both SingleFeeds.
 
