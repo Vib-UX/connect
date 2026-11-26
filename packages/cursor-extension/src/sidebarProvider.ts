@@ -682,6 +682,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     let settlementRows = [];
     let matchSettlement = null;
     let chainSettlements = [];
+    let gameLive = false;
     function payoutHref(hash) {
       return typeof hash === 'string' && /^0x[a-fA-F0-9]{64}$/.test(hash)
         ? 'https://testnet.bscscan.com/tx/' + hash
@@ -760,15 +761,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       for (const row of settlementRows) pushResult(row);
       const groups = promptRows.map((prompt) => ({ prompt: prompt, results: [] }));
       const byTime = groups.slice().sort((a, b) => (a.prompt.at || 0) - (b.prompt.at || 0));
+      let newestAt = 0;
+      for (const row of promptRows) {
+        if (row && (row.at || 0) >= newestAt) newestAt = row.at || 0;
+      }
       const ordered = results.slice().sort((a, b) => (a.at || 0) - (b.at || 0));
       for (const result of ordered) {
         let host = null;
         for (const group of byTime) {
-          if (!result.at || (group.prompt.at || 0) <= result.at) host = group;
+          if (!group.prompt || group.prompt.amount === '…') continue;
+          // The prompt that started the live game has a cost once the turn stops.
+          // Keep that game's result off the row until the board itself is finished.
+          if (gameLive && newestAt && (group.prompt.at || 0) === newestAt) continue;
+          if (result.at && (group.prompt.at || 0) <= result.at) host = group;
         }
-        if (!host && byTime.length) host = byTime[byTime.length - 1];
         if (host) host.results.push(result);
-        else groups.push({ prompt: null, results: [result] });
+        else if (!(gameLive && newestAt && result.at && result.at >= newestAt)) {
+          groups.push({ prompt: null, results: [result] });
+        }
       }
       if (!latestDeposit && !groups.length) {
         const empty = document.createElement('div');
@@ -918,7 +928,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (msg.type !== 'state') return;
       const s = msg.state;
       $('dot').className = 'dot' + (s.connected ? ' on' : '');
-      matchSettlement = resultRow(s.match, s.me);
+      gameLive = !!((s.match && s.match.status === 'active') || (s.flappy && s.flappy.status === 'playing'));
+      matchSettlement = gameLive ? null : resultRow(s.match, s.me);
       paintLedger();
       const online = s.peers.length + (s.me ? 1 : 0);
       $('statusText').textContent = !s.connected

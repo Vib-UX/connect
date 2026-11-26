@@ -581,8 +581,13 @@ export class BoardPanel {
       };
       // Only the current match payout — not the full win history (that was dumping Won $0.001 five times).
       const match = state && state.match;
+      const chessLive = match && match.status === 'active';
+      const flappyLive = flappyView && flappyView.status === 'playing';
+      if (chessLive || flappyLive) return;
       if (match && match.status === 'finished') {
         add(settleLabel('', chessVerb(match, state && state.me)), settlementHref(match));
+      } else if (flappyView && flappyView.status === 'done') {
+        add(settleLabel(flappyView.stake || ''), '');
       } else {
         const transfer = bank && bank.transfer;
         if (transfer) add(settleLabel(transfer.line), transfer.href);
@@ -1425,6 +1430,7 @@ export class BoardPanel {
     let flappyAcc = 0;
     let flappyLast = 0;
     let flappyPosted = '';
+    let flappyArmed = false;
     function gapSize(h) { return Math.max(3, Math.floor(h / 3)); }
     function pull(box) {
       let a = (box.state + 0x6d2b79f5) | 0;
@@ -1462,6 +1468,7 @@ export class BoardPanel {
       flappyRound = { contestId: view.id, game: newFlappy(function () { return pull(box); }), rng: box.state };
       flappyAcc = 0;
       flappyPosted = '';
+      flappyArmed = false;
     }
     function applyFlappy(view) {
       flappyView = view;
@@ -1474,15 +1481,18 @@ export class BoardPanel {
     function flappyLine() {
       const view = flappyView;
       const game = flappyRound && flappyRound.game;
+      const same = game && view && flappyRound.contestId === view.id;
+      const flying = same && !game.over;
       const stake = view && view.stake ? ' ' + view.stake : '';
       if (!view || view.status === 'waiting' || view.seeking) return 'Waiting for another player.';
-      if (view.winner === 'you') return 'You win ' + view.you + ' to ' + view.them + '.' + stake + claimSuffix(view);
-      if (view.winner === 'them') return (view.themName || 'They') + ' wins ' + view.them + ' to ' + view.you + '.' + stake + claimSuffix(view);
-      if (view.winner === 'draw') return 'Draw, ' + view.you + ' each.' + claimSuffix(view);
+      if (flying && !flappyArmed) return 'Click or space to fly.';
+      if (flying) return 'Score ' + game.score;
+      if (view.status === 'done' && view.winner === 'you') return 'You win ' + view.you + ' to ' + view.them + '.' + stake + claimSuffix(view);
+      if (view.status === 'done' && view.winner === 'them') return (view.themName || 'They') + ' wins ' + view.them + ' to ' + view.you + '.' + stake + claimSuffix(view);
+      if (view.status === 'done' && view.winner === 'draw') return 'Draw, ' + view.you + ' each.' + claimSuffix(view);
       if (game && game.over) return 'You scored ' + game.score + '. Waiting for ' + (view.themName || 'them') + '.';
-      if (game) return 'Score ' + game.score;
-      if (view.you != null) return 'You scored ' + view.you + '. Waiting for ' + (view.themName || 'them') + '.';
-      return 'Same course. Space flaps.';
+      if (view.you != null && view.status === 'done') return 'You scored ' + view.you + '. Waiting for ' + (view.themName || 'them') + '.';
+      return 'Same course. Click or space to fly.';
     }
     function drawFlappy() {
       const canvas = $('flappyCanvas');
@@ -1524,10 +1534,11 @@ export class BoardPanel {
     }
     function flapNow() {
       if (!flappyRound || !flappyRound.game || flappyRound.game.over) return;
+      flappyArmed = true;
       flappyRound.game = flapBird(flappyRound.game);
     }
     function stepLocal() {
-      if (!flappyRound || !flappyRound.game || flappyRound.game.over) return;
+      if (!flappyArmed || !flappyRound || !flappyRound.game || flappyRound.game.over) return;
       const box = { state: flappyRound.rng >>> 0 };
       flappyRound.game = tickFlappy(flappyRound.game, function () { return pull(box); });
       flappyRound.rng = box.state;

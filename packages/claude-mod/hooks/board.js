@@ -265,7 +265,7 @@ function drawFlappy(props, state, surface) {
   else if (game && game.over && props.winner === "them") hint = `${props.themName || "They"} win ${props.them} to ${props.you}`;
   else if (game && game.over && props.winner === "draw") hint = `Draw · ${props.you} each`;
   else if (game && game.over) hint = `You scored ${game.score}. Waiting for ${props.themName || "the other player"}.`;
-  else if (game && round && !round.playing) hint = `Paused · ${game.score} · p resumes`;
+  else if (game && round && !round.playing) hint = game.score ? `Paused · ${game.score} · p resumes` : "Click or space to fly.";
   else if (game) hint = state.focused ? `Score ${game.score} · space flaps · p pauses` : `Score ${game.score} · click the board, then space flaps`;
   rows.push(Text({ key: "hint", dimColor: true, children: [hint] }));
   return Box({ flexDirection: "column", children: rows });
@@ -277,7 +277,7 @@ function startFlappy(props) {
     contestId: props.contestId,
     game: started.game,
     rng: started.rng,
-    playing: true,
+    playing: false,
     posted: false,
   };
 }

@@ -440,21 +440,61 @@ function depositBlock($, ui) {
 
 const EXPLORER = /^https:\/\/(?:testnet\.)?bscscan\.com\/tx\/0x[a-fA-F0-9]{64}\/?$/;
 
-/** The match settlement and the last claim, each with its BscScan link, as the Cursor sidebar shows them. */
+/** Won, Lost or Draw for the match on screen, or "" while nothing has settled. */
+function currentResult() {
+  const match = snap.match;
+  if (match && match.status === "finished" && match.result) {
+    if (match.result.kind === "draw") return "Draw";
+    return match.result.winner === snap.me?.id ? "Won" : "Lost";
+  }
+  const flap = snap.flappy;
+  if (flap && flap.status === "done") return flap.winner === "you" ? "Won" : flap.winner === "them" ? "Lost" : "Draw";
+  return "";
+}
+
+function resultFromLine(line) {
+  const text = String(line || "");
+  if (/^draw\b/i.test(text)) return "Draw";
+  if (/^won\b/i.test(text) || /\byou won\b/i.test(text)) return "Won";
+  if (/^lost\b/i.test(text) || /\byou lost\b/i.test(text)) return "Lost";
+  return "";
+}
+
+/** Win/loss sized like the last finished prompt, not the fixed escrow stake. */
+function promptPrize(result) {
+  const row = prompts.find((item) => item.usage);
+  const cost = row ? promptCost(row.usage) : 0;
+  if (cost <= 0) return "";
+  const amount = `$${cost.toFixed(4)}`;
+  return result === "Won" ? `+${amount}` : result === "Lost" ? `-${amount}` : amount;
+}
+
+function settleLabel(result) {
+  const prize = result ? promptPrize(result) : "";
+  return `${result || "Settlement"}${prize ? ` ${prize}` : ""} · prompt cost on BNB testnet`;
+}
+
+/** The match settlement and the last claim, each with its BscScan link, as the Cursor board shows them. */
 function txTrail(ui) {
   const { Box, Text, Link } = ui;
   const bank = snap.bank;
-  if (!bank) return null;
   const rows = [];
-  const transfer = bank.transfer;
-  if (transfer && transfer.line) {
-    rows.push({ key: "tx-transfer", label: transfer.line, href: EXPLORER.test(transfer.href || "") ? transfer.href : "" });
+  // Only the current match, priced by prompt cost — not the stake or the whole win history.
+  const result = currentResult();
+  if (result) {
+    const href = settlementHref();
+    rows.push({ key: "tx-result", label: settleLabel(result), href: EXPLORER.test(href) ? href : "" });
+  } else if (bank && bank.transfer && bank.transfer.line) {
+    const transfer = bank.transfer;
+    rows.push({
+      key: "tx-transfer",
+      label: settleLabel(resultFromLine(transfer.line)),
+      href: EXPLORER.test(transfer.href || "") ? transfer.href : "",
+    });
   }
-  const payout = bank.payout;
+  const payout = bank && bank.payout;
   if (payout && EXPLORER.test(payout.href || "")) {
-    const usd = payout.usd ? `${payout.usd} ` : "";
-    const chain = payout.chainName ? `on ${payout.chainName}` : "";
-    rows.push({ key: "tx-payout", label: `Sent ${usd}${chain}`.trim(), href: payout.href });
+    rows.push({ key: "tx-payout", label: "Claim · prompt cost on BNB testnet", href: payout.href });
   }
   if (!rows.length) return null;
   return Box({
@@ -566,14 +606,6 @@ function renderChess($, ui) {
             children: [`Balance ${balance}. Claim it whenever you want.`],
           }),
         );
-      }
-      const transfer = snap.bank && snap.bank.transfer && snap.bank.transfer.line;
-      if (transfer) {
-        rows.push(Text({ key: "stake-transfer", color: "claude", children: [transfer] }));
-      }
-      const settledHref = settlementHref();
-      if (settledHref) {
-        rows.push(Text({ key: "settlement", color: "claude", children: [settledHref] }));
       }
     }
     if (match && match.result && !snap.seeking && !snap.drawing) {
@@ -724,10 +756,6 @@ function renderFlappy($, ui) {
               ? `Flying against ${flap.themName || "the other player"}. The relay compares the final scores.`
               : `You scored ${flap.you}. Waiting for ${flap.themName || "them"}.`;
   rows.push(Text({ key: "flappy-status", color: flap && flap.status === "done" ? "success" : "subtle", children: [line] }));
-  if (flap && flap.status === "done") {
-    const settledHref = settlementHref();
-    if (settledHref) rows.push(Text({ key: "flappy-settlement", color: "claude", children: [settledHref] }));
-  }
   rows.push(
     Client({
       key: "flappy-board",
@@ -941,7 +969,11 @@ export function register(on, options = {}) {
 
   on("turn.complete", async ($, e, next) => {
     const row = e.agentId === undefined ? prompts.find((item) => item.turnId === e.turnId) : null;
-    if (row && e.usage) row.usage = e.usage;
+    if (row && e.usage) {
+      row.usage = e.usage;
+      // The settlement line is priced from this prompt.
+      if (paneOpen) $.ui.invalidate("ui.render");
+    }
     return next(e);
   });
 
