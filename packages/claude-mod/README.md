@@ -27,7 +27,7 @@ In Claude Code:
 
 `claude plugin validate ./packages/claude-mod` lists the hooks.
 
-The display name and relay URL are read when the MCP process starts. The relay is `wss://connectrelay-production.up.railway.app/ws`. Set `display_name` and `relay_url` in `/config` before that process starts. Deposits are USDT into the BNB testnet escrow `0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54`. `pieces` is `unicode` or `letters`. `columns` is the docked pane width, 30–100, default 60.
+The display name and relay URL are read when the MCP process starts. The relay is `wss://connectrelay-production.up.railway.app/ws`. Set `display_name` and `relay_url` in `/config` before that process starts. Deposits are USDT into ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. NVDAB and XAUt are optional on that page. `pieces` is `unicode` or `letters`. `columns` is the docked pane width, 30–100, default 60.
 
 ## What the pane does
 

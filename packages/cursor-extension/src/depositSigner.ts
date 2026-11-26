@@ -1,12 +1,25 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { USDT_TESTNET, ESCROW_TESTNET, type EvmChainId } from "./prefs";
+import {
+  USDT_TESTNET,
+  ESCROW_TESTNET,
+  SHARE_ESCROW_TESTNET,
+  NVDAB_TESTNET,
+  XAUT_TESTNET,
+  type EvmChainId,
+} from "./prefs";
 
 export interface DepositProof {
   address: `0x${string}`;
   txHash: `0x${string}`;
   chainId: EvmChainId;
+}
+
+interface ShareDeposit {
+  symbol: string;
+  token: string;
+  amount: bigint;
 }
 
 interface DepositPage {
@@ -18,6 +31,9 @@ interface DepositPage {
   nativeSymbol: string;
   escrow: string;
   usdt: string;
+  /** ShareEscrow. Stock approve calls spend to this address, and deposit calls land here. */
+  shareEscrow: string;
+  shares: ShareDeposit[];
   amount: bigint;
   label: string;
 }
@@ -31,6 +47,11 @@ const TESTNET: DepositPage = {
   nativeSymbol: "tBNB",
   escrow: ESCROW_TESTNET,
   usdt: USDT_TESTNET,
+  shareEscrow: SHARE_ESCROW_TESTNET,
+  shares: [
+    { symbol: "NVDAB", token: NVDAB_TESTNET, amount: 10n ** 18n },
+    { symbol: "XAUt", token: XAUT_TESTNET, amount: 10n ** 18n },
+  ],
   amount: 10_000_000_000_000_000_000n,
   label: "$10",
 };
@@ -49,11 +70,11 @@ export function formatUsdt(units: bigint): string {
   return `$${whole}.${mills.toString().padStart(3, "0")}`;
 }
 
-/** Free balance of the address that signed the deposit. */
+/** Free USDT balance of the address that signed the deposit, in ShareEscrow. */
 export async function readEscrowBalance(account: string, chainId: number): Promise<bigint> {
   const page = depositPage(chainId);
   if (!page || !/^0x[a-fA-F0-9]{40}$/.test(account)) return 0n;
-  const data = `0x70a08231${account.slice(2).toLowerCase().padStart(64, "0")}`;
+  const data = `0xf7888aec${account.slice(2).toLowerCase().padStart(64, "0")}${page.usdt.slice(2).toLowerCase().padStart(64, "0")}`;
   const response = await fetch(page.rpcUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -61,7 +82,7 @@ export async function readEscrowBalance(account: string, chainId: number): Promi
       jsonrpc: "2.0",
       id: 1,
       method: "eth_call",
-      params: [{ to: page.escrow, data }, "latest"],
+      params: [{ to: page.shareEscrow, data }, "latest"],
     }),
   });
   const body = (await response.json()) as { result?: string };
@@ -69,7 +90,7 @@ export async function readEscrowBalance(account: string, chainId: number): Promi
   return BigInt(body.result);
 }
 
-const DEPOSIT_TOPIC = "0x73a19dd210f1a7f902193214c0ee91dd35ee5b4d920cba8d519eca65a7b488ca";
+const DEPOSIT_TOPIC = "0xf5681f9d0db1b911ac18ee83d515a1cf1051853a9eae418316a2fdf7dea427c5";
 const LOG_RPCS = ["https://bsc-testnet-rpc.publicnode.com", "https://bsc-testnet.publicnode.com"];
 
 export interface DepositTx {
@@ -178,11 +199,12 @@ export async function readSettlements(account: string, chainId: number): Promise
   return [];
 }
 
-/** Newest ConnectEscrow deposit for this account, walking back from the chain tip. */
+/** Newest ShareEscrow USDT deposit for this account, walking back from the chain tip. */
 export async function readLatestDeposit(account: string, chainId: number): Promise<DepositTx | null> {
   const page = depositPage(chainId);
   if (!page || !/^0x[a-fA-F0-9]{40}$/.test(account)) return null;
   const topic1 = `0x${account.slice(2).toLowerCase().padStart(64, "0")}`;
+  const tokenTopic = `0x${page.usdt.slice(2).toLowerCase().padStart(64, "0")}`;
   for (const url of [...LOG_RPCS, page.rpcUrl]) {
     try {
       const tip = BigInt(String(await rpc(url, "eth_blockNumber", [])));
@@ -193,8 +215,8 @@ export async function readLatestDeposit(account: string, chainId: number): Promi
         const from = to > span ? to - span : 0n;
         const logs = (await rpc(url, "eth_getLogs", [
           {
-            address: page.escrow,
-            topics: [DEPOSIT_TOPIC, topic1],
+            address: page.shareEscrow,
+            topics: [DEPOSIT_TOPIC, topic1, tokenTopic],
             fromBlock: `0x${from.toString(16)}`,
             toBlock: `0x${to.toString(16)}`,
           },
@@ -221,6 +243,11 @@ export function encodeDeposit(amount: bigint): string {
   return `0xb6b55f25${word(amount)}`;
 }
 
+/** ShareEscrow.deposit(address,uint256). */
+export function encodeShareDeposit(token: string, amount: bigint): string {
+  return `0x47e7ef24${word(token)}${word(amount)}`;
+}
+
 function word(value: string | bigint): string {
   const hex = typeof value === "bigint" ? value.toString(16) : value.toLowerCase().replace(/^0x/, "");
   return hex.padStart(64, "0");
@@ -235,8 +262,8 @@ let active: { close: () => void } | undefined;
 export function startDepositPage(page: DepositPage, onProof: (proof: DepositProof) => void): Promise<string> {
   active?.close();
   const token = randomBytes(16).toString("hex");
-  const approveData = encodeApprove(page.escrow, page.amount);
-  const depositData = encodeDeposit(page.amount);
+  const approveData = encodeApprove(page.shareEscrow, page.amount);
+  const depositData = encodeShareDeposit(page.usdt, page.amount);
 
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
@@ -314,8 +341,17 @@ function renderPage(page: DepositPage, token: string, approveData: string, depos
     nativeSymbol: page.nativeSymbol,
     escrow: page.escrow,
     usdt: page.usdt,
+    shareEscrow: page.shareEscrow,
+    shares: page.shares.map((share) => ({
+      symbol: share.symbol,
+      token: share.token,
+      amount: share.amount.toString(),
+      approveData: encodeApprove(page.shareEscrow, share.amount),
+      depositData: encodeShareDeposit(share.token, share.amount),
+    })),
     approveData,
     depositData,
+    amount: page.amount.toString(),
     label: page.label,
   });
   return `<!DOCTYPE html>
@@ -328,7 +364,18 @@ function renderPage(page: DepositPage, token: string, approveData: string, depos
     main { max-width: 440px; margin: 48px auto; padding: 0 20px; }
     h1 { font-size: 22px; margin: 0 0 8px; }
     p { color: #c8c2b4; }
-    .addr { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; background: #1c212b; border-radius: 10px; padding: 12px; }
+    ol.flow { list-style: none; margin: 8px 0 0; padding: 0; }
+    ol.flow li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid #2a3140; }
+    ol.flow .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #1c212b; font-size: 12px; flex: none; margin-top: 1px; }
+    ol.flow strong { display: block; font-size: 14px; }
+    ol.flow small { display: block; color: #8d877c; font-size: 12px; word-break: break-all; margin-top: 2px; }
+    ol.flow li.on .n { background: #f0b429; color: #1a1405; }
+    ol.flow li.done { opacity: 0.55; }
+    .kicker { margin: 16px 0 0; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: #8d877c; }
+    label.opt { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; color: #c8c2b4; cursor: pointer; }
+    label.opt input { margin-top: 3px; }
+    label.opt strong { display: block; color: #f4f1ea; }
+    label.opt small { display: block; color: #8d877c; }
     button { margin-top: 16px; width: 100%; padding: 12px; border: 0; border-radius: 10px; background: #f0b429; color: #1a1405; font-weight: 700; cursor: pointer; }
     button:disabled { opacity: 0.6; cursor: wait; }
     .err { color: #ff8b8b; }
@@ -337,16 +384,30 @@ function renderPage(page: DepositPage, token: string, approveData: string, depos
 </head>
 <body>
   <main>
-    <h1>Deposit ${page.label} USDT</h1>
-    <p>MetaMask will ask you to approve USDT, then call <strong>deposit</strong> on this escrow. The account that signs is the one Connect credits.</p>
-    <div class="addr" id="escrow">${page.escrow}</div>
-    <p id="status">${page.chainName} · ${page.label} USDT</p>
+    <h1>Deposit</h1>
+    <p>MetaMask signs each step. The account that signs is the one Connect credits.</p>
+    <ol class="flow">
+      <li id="step-usdt-approve"><span class="n">1</span><div><strong>Approve ${page.label} USDT</strong><small>Allowance for ShareEscrow</small></div></li>
+      <li id="step-usdt-deposit"><span class="n">2</span><div><strong>Deposit ${page.label} USDT</strong><small>${page.shareEscrow}</small></div></li>
+    </ol>
+    <p class="kicker">Optional shares</p>
+    <label class="opt"><input type="checkbox" data-share="NVDAB" /><span><strong>NVDAB</strong><small>Approve and deposit 1 share into ${page.shareEscrow}</small></span></label>
+    <label class="opt"><input type="checkbox" data-share="XAUt" /><span><strong>XAUt</strong><small>Approve and deposit 1 share into ${page.shareEscrow}</small></span></label>
+    <p id="status">${page.chainName}</p>
     <button id="go">Sign deposit in MetaMask</button>
   </main>
   <script>
     const cfg = ${config};
     const $ = (id) => document.getElementById(id);
     const status = (text) => { $('status').textContent = text; };
+    function mark(id) {
+      let state = 'done';
+      document.querySelectorAll('ol.flow li').forEach((li) => {
+        if (li.id === id) { li.className = 'on'; state = ''; }
+        else li.className = state;
+      });
+    }
+    let usdtDepositHash = '';
     $('go').onclick = async () => {
       const button = $('go');
       button.disabled = true;
@@ -371,20 +432,50 @@ function renderPage(page: DepositPage, token: string, approveData: string, depos
             }]
           });
         }
-        status('Approve USDT for the escrow…');
-        const approveHash = await ethereum.request({
-          method: 'eth_sendTransaction',
-          params: [{ from, to: cfg.usdt, data: cfg.approveData }]
-        });
-        await waitReceipt(ethereum, approveHash);
-        status('Sign the deposit on the escrow…');
-        const depositHash = await ethereum.request({
-          method: 'eth_sendTransaction',
-          params: [{ from, to: cfg.escrow, data: cfg.depositData }]
-        });
-        const receipt = await waitReceipt(ethereum, depositHash);
-        if (!receipt.to || receipt.to.toLowerCase() !== cfg.escrow.toLowerCase()) {
-          throw new Error('That transaction did not call the escrow.');
+        const chosen = new Set(
+          Array.from(document.querySelectorAll('input[data-share]:checked')).map((el) => el.getAttribute('data-share'))
+        );
+        document.querySelectorAll('input[data-share]').forEach((el) => { el.disabled = true; });
+        let depositHash = usdtDepositHash;
+        if (!depositHash) {
+          const usdtAmount = BigInt(cfg.amount);
+          const usdtBalance = await readUint(ethereum, cfg.usdt, '0x70a08231' + word(from));
+          if (usdtBalance < usdtAmount) {
+            status('Mint ' + cfg.label + ' USDT for this account…');
+            mark('step-usdt-approve');
+            await sendTx(ethereum, from, cfg.usdt, '0x40c10f19' + word(from) + word(usdtAmount));
+          }
+          status('Approve USDT for ShareEscrow…');
+          mark('step-usdt-approve');
+          const approveHash = await ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{ from, to: cfg.usdt, data: cfg.approveData }]
+          });
+          await waitReceipt(ethereum, approveHash);
+          status('Sign the USDT deposit…');
+          mark('step-usdt-deposit');
+          depositHash = await ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{ from, to: cfg.shareEscrow, data: cfg.depositData }]
+          });
+          const receipt = await waitReceipt(ethereum, depositHash);
+          if (!receipt.to || receipt.to.toLowerCase() !== cfg.shareEscrow.toLowerCase()) {
+            throw new Error('That transaction did not call ShareEscrow.');
+          }
+          usdtDepositHash = depositHash;
+        }
+        for (const share of cfg.shares) {
+          if (!chosen.has(share.symbol)) continue;
+          const amount = BigInt(share.amount);
+          const balance = await readUint(ethereum, share.token, '0x70a08231' + word(from));
+          if (balance < amount) {
+            status('Mint 1 ' + share.symbol + ' for this account…');
+            await sendTx(ethereum, from, share.token, '0x40c10f19' + word(from) + word(amount));
+          }
+          status('Approve ' + share.symbol + ' for the share escrow…');
+          await sendTx(ethereum, from, share.token, share.approveData);
+          status('Deposit ' + share.symbol + ' into the share escrow…');
+          await sendTx(ethereum, from, cfg.shareEscrow, share.depositData);
         }
         const response = await fetch('/done?token=' + cfg.token, {
           method: 'POST',
@@ -392,15 +483,33 @@ function renderPage(page: DepositPage, token: string, approveData: string, depos
           body: JSON.stringify({ address: from, txHash: depositHash, chainId: cfg.chainId })
         });
         if (!response.ok && response.status !== 204) throw new Error('Connect did not accept the proof.');
+        document.querySelectorAll('ol.flow li').forEach((li) => { li.className = 'done'; });
         status('Deposit signed. Return to Cursor. ' + depositHash);
-        $('escrow').textContent = cfg.escrow;
         button.textContent = 'Signed';
       } catch (err) {
         status(err && err.message ? err.message : String(err));
         $('status').className = 'err';
         button.disabled = false;
+        document.querySelectorAll('input[data-share]').forEach((el) => { el.disabled = false; });
       }
     };
+    function word(value) {
+      const hex = (typeof value === 'bigint' ? value.toString(16) : String(value).replace(/^0x/i, '')).toLowerCase();
+      return hex.padStart(64, '0');
+    }
+    async function readUint(ethereum, to, data) {
+      const result = await ethereum.request({ method: 'eth_call', params: [{ to, data }, 'latest'] });
+      if (!result || result === '0x') return 0n;
+      return BigInt(result);
+    }
+    async function sendTx(ethereum, from, to, data) {
+      const hash = await ethereum.request({ method: 'eth_sendTransaction', params: [{ from, to, data }] });
+      const receipt = await waitReceipt(ethereum, hash);
+      if (!receipt.to || receipt.to.toLowerCase() !== to.toLowerCase()) {
+        throw new Error('That transaction did not call ' + to + '.');
+      }
+      return hash;
+    }
     async function waitReceipt(ethereum, hash) {
       for (let i = 0; i < 40; i++) {
         const receipt = await ethereum.request({ method: 'eth_getTransactionReceipt', params: [hash] });

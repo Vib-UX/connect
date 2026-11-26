@@ -43,17 +43,26 @@ export function rpcCandidates(chainId: number): string[] {
   return [...new Set([...preferred, env].filter((item): item is string => Boolean(item)))];
 }
 
-/** ConnectEscrow address. CONNECT_ESCROW_ADDRESS overrides. */
+/** ShareEscrow on BSC testnet. The deposit page in Claude Code and Cursor pays into this one. */
+export const SHARE_ESCROW_TESTNET = "0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7" as Address;
+/** MockUSDT on BSC testnet. */
+export const USDT_TESTNET = "0x27Ae80b8eE17ffbCFCf38469A018A942BC8f8Ba9" as Address;
+
+/** ShareEscrow address. CONNECT_SHARE_ESCROW_ADDRESS overrides. No mainnet default yet. */
+export function shareEscrowAddress(): Address | null {
+  return addressFrom("CONNECT_SHARE_ESCROW_ADDRESS", escrowChainId() === 97 ? SHARE_ESCROW_TESTNET : "");
+}
+
+/** Escrow that holds play balances. ShareEscrow when there is one, else ConnectEscrow from CONNECT_ESCROW_ADDRESS. */
 export function escrowAddress(): Address | null {
-  return addressFrom("CONNECT_ESCROW_ADDRESS", "");
+  return shareEscrowAddress() ?? addressFrom("CONNECT_ESCROW_ADDRESS", "");
 }
 
 /** Testnet MockUSDT or mainnet USDT. CONNECT_USDT_ADDRESS overrides. */
 export function escrowUsdtAddress(): Address | null {
   const override = addressFrom("CONNECT_USDT_ADDRESS", "");
   if (override) return override;
-  if (escrowChainId() === 56) return USDT_BNB;
-  return null;
+  return escrowChainId() === 56 ? USDT_BNB : USDT_TESTNET;
 }
 
 /** Legacy treasury lookup. Connect deposits go to the escrow, so this stays empty. */

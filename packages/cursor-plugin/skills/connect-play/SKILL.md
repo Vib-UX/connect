@@ -11,7 +11,7 @@ Use the Connect MCP tools when the user wants to find another Cursor or Claude p
 
 ## Deposit
 
-Play stays closed until the wallet has a USDT balance in the Connect escrow on BNB testnet, `0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54`. `connect_set_player` saves that wallet. `connect_sync_deposit` reads the escrow balance. Deposit from the Connect sidebar.
+Play stays closed until the wallet has a balance in ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. `connect_set_player` saves that wallet. `connect_sync_deposit` reads the escrow balance. Deposit from the Connect sidebar. MetaMask approves and deposits the USDT into that ShareEscrow. NVDAB and XAUt are optional checkboxes on that page.
 
 ## Find someone
 

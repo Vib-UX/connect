@@ -7,9 +7,9 @@ description: Open the Connect pane so two people can play chess or flappy. Flapp
 
 The person plays. You do not.
 
-`/connect` opens the pane. Both players deposit USDT into the same Connect escrow on BNB testnet, `0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54`. Deposit in the pane opens the MetaMask page in their browser, the same one Cursor opens. Once it confirms, the balance syncs. Play stays closed until that escrow balance is there. A prompt from each person starts the selected game. The relay at `wss://connectrelay-production.up.railway.app/ws` pairs the two players.
+`/connect` opens the pane. Both players deposit into ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. Deposit in the pane opens the MetaMask page in their browser, the same one Cursor opens. Once it confirms, the balance syncs. Play stays closed until that escrow balance is there. A prompt from each person starts the selected game. The relay at `wss://connectrelay-production.up.railway.app/ws` pairs the two players.
 
-1. Tell them to run `/connect` and press Deposit. MetaMask asks them to approve USDT, then deposit into `0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54` on BNB testnet. If they ask you instead, call `connect_deposit`. Check deposit re-reads the balance. Play stays closed until that balance is there.
+1. Tell them to run `/connect` and press Deposit. MetaMask asks them to approve USDT, then deposit into ShareEscrow `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7` on BNB testnet. NVDAB and XAUt are optional checkboxes on that page. If they ask you instead, call `connect_deposit`. Check deposit re-reads the balance. Play stays closed until that balance is there.
 2. The Cursor player deposits into the same escrow. A match locks a stake from that balance.
 3. Chess starts when each person prompts. The first prompt waits. The other person's prompt starts the battle. Do not call `connect_next`.
 4. Flappy starts the same way. Each person flies on their own machine. The relay only hears the final score and says who scored higher. Do not call `connect_flappy_join` or `connect_flappy_score`.

@@ -10,7 +10,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { bsc, bscTestnet } from "viem/chains";
-import { escrowChainId, escrowAddress, rpcCandidates } from "./chains.js";
+import { escrowChainId, escrowAddress, escrowUsdtAddress, rpcCandidates, shareEscrowAddress } from "./chains.js";
 
 /** USDT on BNB Smart Chain mainnet (18 decimals). */
 export const USDT_BNB = "0x55d398326f99059fF775485246999027B3197955" as const;
@@ -112,6 +112,40 @@ const ESCROW_ABI = [
   },
 ] as const;
 
+/** ShareEscrow keeps one balance per token. Connect stakes USDT on both sides. */
+const SHARE_ESCROW_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [
+      { name: "player", type: "address" },
+      { name: "token", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "lock",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "betId", type: "bytes32" },
+      { name: "playerA", type: "address" },
+      { name: "playerB", type: "address" },
+      { name: "tokenA", type: "address" },
+      { name: "tokenB", type: "address" },
+      { name: "usdStake", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  ESCROW_ABI[2],
+] as const;
+
+/** ShareEscrow needs the USDT token, so it is used only when both are known. */
+function shareUsdt(): Address | null {
+  return shareEscrowAddress() ? escrowUsdtAddress() : null;
+}
+
 const OUTCOME_CODE: Record<EscrowOutcome, number> = {
   a_wins: 0,
   b_wins: 1,
@@ -141,7 +175,7 @@ export function escrowConfigured(): boolean {
   return Boolean(escrowAddress() && settlerKey());
 }
 
-/** Live ConnectEscrow client on BNB mainnet or testnet. */
+/** Live ShareEscrow (or legacy ConnectEscrow) client on BNB mainnet or testnet. */
 export function createEscrowClient(): EscrowClient {
   return {
     configured: () => escrowConfigured(),
@@ -156,6 +190,15 @@ export function createEscrowClient(): EscrowClient {
       for (const rpc of rpcCandidates(chainId)) {
         try {
           const client = createPublicClient({ chain, transport: http(rpc) });
+          const usdt = shareUsdt();
+          if (usdt) {
+            return await client.readContract({
+              address,
+              abi: SHARE_ESCROW_ABI,
+              functionName: "balanceOf",
+              args: [wallet as Address, usdt],
+            });
+          }
           return await client.readContract({
             address,
             abi: ESCROW_ABI,
@@ -170,6 +213,11 @@ export function createEscrowClient(): EscrowClient {
     },
 
     async lock(betId, playerA, playerB, stake) {
+      const usdt = shareUsdt();
+      // USDT is pegged at $1 with 18 decimals, so the stake in units is the USD stake.
+      if (usdt) {
+        return writeEscrow("lock", [betIdBytes(betId), playerA as Address, playerB as Address, usdt, usdt, stake]);
+      }
       return writeEscrow("lock", [
         betIdBytes(betId),
         playerA as Address,
@@ -202,7 +250,7 @@ async function writeEscrow(
       const walletClient = createWalletClient({ account, chain, transport });
       const txHash = await walletClient.writeContract({
         address,
-        abi: ESCROW_ABI,
+        abi: shareUsdt() ? SHARE_ESCROW_ABI : ESCROW_ABI,
         functionName: fn,
         args: args as never,
       });

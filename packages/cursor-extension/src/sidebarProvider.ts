@@ -474,6 +474,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     .addr { word-break: break-all; font-size: 12px; line-height: 1.4; margin: 6px 0; user-select: text; }
     #bankTransfer a { word-break: break-all; color: var(--vscode-textLink-foreground); }
     .choice input { width: auto; margin: 0; }
+    ol.flow { list-style: none; margin: 10px 0 0; padding: 0; }
+    ol.flow li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--vscode-widget-border, #333); font-size: 12.5px; }
+    ol.flow span { opacity: 0.55; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
@@ -510,7 +513,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       <option value="97">BNB testnet</option>
       <option value="56">BNB Chain</option>
     </select>
-    <button class="next" id="metamaskDeposit" style="margin-top:8px">Deposit</button>
+    <div id="depositIntro">
+      <ol class="flow">
+        <li><span>1</span> Approve and deposit $10 USDT into ShareEscrow</li>
+      </ol>
+      <p class="empty">ShareEscrow 0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7. NVDAB and XAUt are optional on the sign page.</p>
+      <button class="next" id="metamaskDeposit" style="margin-top:8px">Deposit</button>
+    </div>
   </div>
   <div id="app" style="display:none">
   <div class="stack">
@@ -759,7 +768,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       $('multiplayer').checked = !!prefs.multiplayer;
       if (prefs.chainId) $('chain').value = String(prefs.chainId);
       $('app').style.display = prefs.onboarded ? '' : 'none';
-      $('metamaskDeposit').style.display = prefs.onboarded ? 'none' : '';
+      $('depositIntro').style.display = prefs.onboarded ? 'none' : '';
       if (prefs.wallet && prefs.wallet.length > 12) {
         $('me').textContent = prefs.wallet.slice(0, 6) + '…' + prefs.wallet.slice(-4);
       }

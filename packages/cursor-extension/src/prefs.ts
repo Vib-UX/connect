@@ -32,10 +32,14 @@ export function chainName(id: number): string {
 /** ConnectEscrow on BNB testnet. Mainnet is filled in when that contract is deployed. */
 export const ESCROW_TESTNET = "0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54";
 export const USDT_TESTNET = "0x27Ae80b8eE17ffbCFCf38469A018A942BC8f8Ba9";
+/** ShareEscrow and the minted testnet piles it can lock. */
+export const SHARE_ESCROW_TESTNET = "0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7";
+export const NVDAB_TESTNET = "0x876904e7b854f17A5582524aa5028124240f0e8E";
+export const XAUT_TESTNET = "0x73888097E35C7105aE80022ae2A8beaAc1435E73";
 export const USDT_BNB = "0x55d398326f99059fF775485246999027B3197955";
 
 export function escrowAddressFor(chainId: number): string {
-  return chainId === 97 ? ESCROW_TESTNET : "";
+  return chainId === 97 ? SHARE_ESCROW_TESTNET : "";
 }
 
 export function escrowTerms(chainId: number): { deposit: string; stake: string; name: string } {

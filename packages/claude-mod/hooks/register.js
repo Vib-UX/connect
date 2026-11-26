@@ -172,6 +172,8 @@ function applySnap(data) {
 
 async function refresh($) {
   applySnap(await callTool($, "connect_poll", {}));
+  // The MCP process syncs the balance once the MetaMask page confirms. Drop the page line then.
+  if (depositUrl && funded()) depositUrl = "";
   lastError = "";
   paintStatus($);
   $.ui.invalidate("ui.render");
@@ -320,7 +322,7 @@ const PAYOUT_CHAINS = [
   { id: 97, name: "BNB testnet" },
   { id: 56, name: "BNB Chain" },
 ];
-const ESCROW = "0x2c77532f9b5E32D0E5f5BF2AF3B1B0b3484F3E54";
+const ESCROW = "0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7";
 let payoutChain = 97;
 let walletDraft = "";
 let depositUrl = "";
@@ -353,14 +355,15 @@ function depositBlock($, ui) {
   const rows = [
     Text({
       key: "deposit-hint",
-      children: [`Deposit USDT on ${chainName} into this escrow. A match locks a stake from that balance.`],
+      children: [`MetaMask signs each step on ${chainName}. The account that signs is the one Connect credits.`],
     }),
+    ...(payoutChain === 97
+      ? [
+          Text({ key: "deposit-usdt", children: [`1. Approve and deposit $10 USDT into ${ESCROW}`] }),
+          Text({ key: "deposit-shares", color: "subtle", children: [`NVDAB and XAUt are optional on the sign page.`] }),
+        ]
+      : [Text({ key: "deposit-main", children: ["The BNB Chain escrow is not deployed yet."] })]),
     Text({ key: "deposit-address", color: "claude", children: [address] }),
-    Text({
-      key: "deposit-chain",
-      color: "subtle",
-      children: [`${chainName}. The same escrow balance is what Cursor uses.`],
-    }),
     Text({ key: "deposit-balance", children: [`Balance ${balance}`] }),
   ];
   if (bank && bank.note) rows.push(Text({ key: "deposit-note", color: "subtle", children: [bank.note] }));
@@ -829,7 +832,7 @@ function renderPane($, ui) {
         gap: 2,
         children: ready
           ? [tab($, ui, "chess", "♞ Chess", "c"), tab($, ui, "flappy", "▸ Flappy", "f")]
-          : [Text({ key: "locked", color: "warning", children: ["Deposit USDT on BNB to play"] })],
+          : [Text({ key: "locked", color: "warning", children: ["Deposit on BNB to play"] })],
       }),
       balance,
       txTrail(ui),
@@ -868,7 +871,8 @@ export function register(on, options = {}) {
         (pendingFlappy ||
           flap?.status === "waiting" ||
           (flap?.status === "playing" && flap.you != null && flap.them == null));
-      const hot = flappyHot || snap.seeking || snap.drawing || liveChess() || Boolean(snap.rematch);
+      const depositing = Boolean(depositUrl) && !funded();
+      const hot = flappyHot || depositing || snap.seeking || snap.drawing || liveChess() || Boolean(snap.rematch);
       if (!hot && tickN % 5 !== 0) return;
       enqueue(async () => {
         if (pendingFlappy) await flushFlappy($);
