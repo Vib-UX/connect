@@ -2,7 +2,7 @@
   "name": "connect",
   "private": true,
   "version": "0.1.0",
-  "description": "Connect Cursor and Claude coding agents and play a game while both keep building",
+  "description": "Connect p2p games inside agentic sessions",
   "scripts": {
     "build": "pnpm -r run build",
     "start": "node relay/dist/index.js",

@@ -1,52 +1,10 @@
 # Connect
 
-Two players deposit USDT once into `ConnectEscrow`. The relay locks a stake for each match, decides the winner, and the contract pays that player's balance.
-
-```mermaid
-sequenceDiagram
-  participant A as Player A
-  participant B as Player B
-  participant Escrow as ConnectEscrow
-  participant Relay
-
-  A->>Escrow: deposit(0.1 USDT)
-  B->>Escrow: deposit(0.1 USDT)
-  Note over Escrow: balanceOf[A] = 0.1, balanceOf[B] = 0.1
-
-  Relay->>Escrow: lock(betId, A, B, 0.001)
-  Note over Escrow: each free balance is 0.099, and 0.001 from each side is locked
-
-  Note over Relay: Chess or Flappy names the winner
-
-  alt A wins
-    Relay->>Escrow: settle(betId, AWins)
-    Note over Escrow: balanceOf[A] += 0.002
-  else B wins
-    Relay->>Escrow: settle(betId, BWins)
-    Note over Escrow: balanceOf[B] += 0.002
-  else Draw
-    Relay->>Escrow: settle(betId, Draw)
-    Note over Escrow: each balance += 0.001
-  end
-
-  A->>Escrow: withdraw(free balance)
-  B->>Escrow: withdraw(free balance)
-  Note over Escrow: a locked stake stays until settle or refund
-```
-
-The contract and the testnet record are in [contracts/README.md](contracts/README.md). The relay is `relay/`.
-
-```bash
-pnpm install
-pnpm --filter @connect/relay test
-pnpm --filter @connect/relay dev
-```
-
-On BSC testnet a deposit is 0.1 USDT and a match locks 0.001 USDT. Set `CONNECT_ESCROW_ADDRESS`, `CONNECT_ESCROW_CHAIN_ID=97`, and `ESCROW_SETTLER_PRIVATE_KEY` before starting the relay. See `.env.example`.
+Connect p2p games inside agentic sessions.
 
 ## Share stakes
 
-`ShareEscrow` is separate from the USDT escrow. Each player deposits the share token they prefer. Both sides name the same dollar size. Atlas decides how many shares that dollar size is. Chess or Flappy decides who receives both piles.
+Each player deposits the share token they prefer into `ShareEscrow`. Both sides name the same dollar size. Atlas decides how many shares that dollar size is. Chess or Flappy decides who receives both piles.
 
 ### Which share
 
