@@ -9,8 +9,8 @@
   --gold: #f0b90b;
   --gold-2: #f8d12f;
   --plate: #1e2329;
-  --serif: "Instrument Serif", "Iowan Old Style", Palatino, serif;
-  --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --serif: "Outfit", "Segoe UI", sans-serif;
+  --sans: "Outfit", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
@@ -24,8 +24,9 @@ body {
     var(--bg);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 15.5px;
-  line-height: 1.55;
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -57,9 +58,10 @@ body {
 
 .word {
   font-family: var(--serif);
-  font-size: 1.7rem;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  font-size: 1.55rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
 }
 
 .chain {
@@ -85,32 +87,33 @@ body {
 .lede {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(2.35rem, 6vw, 3.35rem);
-  font-weight: 400;
-  letter-spacing: -0.03em;
-  line-height: 1.02;
+  font-size: clamp(2.15rem, 5vw, 2.85rem);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.22;
 }
 
 .lede em,
 .sub em {
-  font-style: italic;
+  font-style: normal;
   color: var(--gold);
 }
 
 .sub {
   margin: 0.85rem 0 0;
   font-family: var(--serif);
-  font-size: clamp(1.45rem, 3vw, 1.85rem);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-size: clamp(1.35rem, 2.6vw, 1.65rem);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
 .deck {
-  margin: 1rem 0 0;
-  max-width: 38em;
+  margin: 1.25rem 0 0;
+  max-width: 40em;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: 1.08rem;
+  line-height: 1.7;
 }
 
 .games {
@@ -198,9 +201,10 @@ body {
 .install h2, .about h2 {
   margin: 0 0 0.35rem;
   font-family: var(--serif);
-  font-size: 1.7rem;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-size: 1.55rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
 }
 
 .kicker {
@@ -215,9 +219,10 @@ body {
   gap: 0.55rem;
   margin: 1.7rem 0 0.5rem;
   font-family: var(--serif);
-  font-size: 1.45rem;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
   text-transform: none;
   color: var(--ink);
 }
@@ -305,9 +310,7 @@ body {
 
 .command {
   color: var(--ink);
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 1.05rem;
+  font-weight: 500;
 }
 
 .diagram { margin: 1.25rem 0 0; }
@@ -329,8 +332,10 @@ body {
 .who {
   margin: 0 0 0.25rem;
   font-family: var(--serif);
-  font-size: 1.4rem;
-  letter-spacing: -0.02em;
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
 }
 
 .task { margin: 0; color: var(--muted); }
@@ -338,9 +343,10 @@ body {
 .eta {
   margin: 0.8rem 0 0;
   font-family: var(--serif);
-  font-size: 2rem;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  font-size: 1.85rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.15;
   color: var(--gold);
 }
 
@@ -361,8 +367,10 @@ body {
   margin: 0;
   color: var(--gold);
   font-family: var(--serif);
-  font-style: italic;
+  font-style: normal;
+  font-weight: 500;
   font-size: 1.15rem;
+  line-height: 1.3;
   text-align: center;
 }
 
@@ -380,11 +388,13 @@ body {
   padding-top: 0.9rem;
   border-top: 1px solid var(--line);
   font-family: var(--serif);
-  font-size: 1.35rem;
-  letter-spacing: -0.02em;
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
-.payoff em { font-style: italic; color: var(--gold); }
+.payoff em { font-style: normal; color: var(--gold); }
 
 .define { margin: 0.55rem 0 0; }
 
@@ -400,9 +410,10 @@ body {
 .define dt {
   margin: 0;
   font-family: var(--serif);
-  font-size: 1.15rem;
-  font-style: italic;
-  font-weight: 400;
+  font-size: 1.05rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.3;
   color: var(--gold);
 }
 
