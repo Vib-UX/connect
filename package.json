@@ -10,8 +10,9 @@
     "dev:core": "pnpm --filter @connect/core build --watch",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "test:contracts": "forge test --root contracts --match-path test/ConnectEscrow.t.sol",
-    "test:contracts:fork": "forge test --root contracts --match-path test/ConnectEscrow.fork.t.sol -vv"
+    "test:contracts": "forge test --root contracts --match-path 'test/*.t.sol' --no-match-path 'test/*.fork.t.sol'",
+    "test:contracts:fork": "forge test --root contracts --match-path test/ConnectEscrow.fork.t.sol -vv",
+    "test:contracts:share:fork": "forge test --root contracts --match-path test/ShareEscrow.fork.t.sol -vv"
   },
   "engines": {
     "node": ">=20"
