@@ -48,9 +48,18 @@ From the repo root, `pnpm test:contracts` and `pnpm test:contracts:fork` run tho
 
 ## ShareEscrow
 
-Each player deposits the share token they want to stake. A match locks one pile from each player. The tokens can differ. Both sides pass the same dollar size. `lock` reads each token's Atlas feed and freezes the share count that equals that value. `settle` pays the stored counts from the match outcome and does not read the feed again. The winner receives both piles. A draw returns each pile.
+Each player deposits the share token they want to stake. A match locks one pile from each player. The tokens can differ. Both sides pass the same dollar size. Atlas is read only at `lock`. `settle` pays the stored counts from the match outcome and does not read the feed again. The winner receives both piles. A draw returns each pile.
 
-Nvidia against Tesla is the example below. The same calls work for any pair of registered share tokens.
+### Atlas workflow
+
+1. The owner calls `setSingleFeed(token, feed)` or `setMultiFeed(token, feed, feedId)`.
+2. Each player `deposit`s the token they want in the pot.
+3. `lock(betId, playerA, playerB, tokenA, tokenB, usdStake)` reads both feeds. `usdStake` is 18-decimal dollars per side. The share count is `usdStake * 10^tokenDecimals / (price * 10^(18 - priceDecimals))`. A zero answer, an empty MultiFeed word, or an update older than `maxPriceAge` reverts, and the counts freeze on the bet.
+4. Chess or Flappy names the winner. `settle(betId, AWins | BWins | Draw)` credits the frozen piles. A second settle reverts.
+
+A SingleFeed is read with `latestRoundData()`. A MultiFeed id is read with `fetchCompact` and [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). The fork test and the testnet deploy set `maxPriceAge` to 3 days.
+
+Nvidia against Tesla is the example in the clip. The same calls work for any pair of registered share tokens. On BSC testnet the registered pair is NVDAB/USD and XAU/USD, both SingleFeeds.
 
 ![Each player locks a preferred stock, the escrow matches the dollar value, and the match settles it](docs/share-escrow-flow.gif)
 
@@ -68,20 +77,18 @@ In the clip each side stakes $100. Player A locks Nvidia. The SingleFeed answers
 | B wins | `settle(betId, BWins)` | B receives both piles |
 | Draw | `settle(betId, Draw)` | A gets 0.5 NVDAB back, B gets 0.25 TSLAB back |
 
-Nvidia is a SingleFeed. `lock` calls `latestRoundData()`. Tesla is feed id 933 (`bytes4` `0x000003a5`) on the MultiFeed. `lock` calls `fetchCompact` and unpacks the word with [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). A zero answer or an update older than `maxPriceAge` reverts, so the settler cannot invent a price. The fork test sets that window to 3 days, which still accepts a Friday close on Monday.
+### BSC testnet feeds the fork reads
 
-### BSC mainnet contracts the fork calls
+Atlas published these as SingleFeeds. `description()` returns the pair. They are the price source, and the test mints the NVDAB and XAUt piles that get locked.
 
 | | Address |
 |---|---|
-| NVDAB | [`0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436`](https://bscscan.com/token/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436) |
-| TSLAB | [`0x5b1910eAaD6450E50f816082Aa078C41F10C292f`](https://bscscan.com/token/0x5b1910eAaD6450E50f816082Aa078C41F10C292f) |
-| Nvidia SingleFeed | [`0xf25Af12920D408bAf6211e9e90eDa89DF3D8CCDa`](https://bscscan.com/address/0xf25Af12920D408bAf6211e9e90eDa89DF3D8CCDa) |
-| Tesla MultiFeed | [`0xEAcE519ebB14fB8404fA6DdD23C3b34abaDE44aa`](https://bscscan.com/address/0xEAcE519ebB14fB8404fA6DdD23C3b34abaDE44aa) |
+| NVDAB/USD | [`0x3eF39d6361EfA1E8Ca066751f438077dA81082A6`](https://testnet.bscscan.com/address/0x3eF39d6361EfA1E8Ca066751f438077dA81082A6) |
+| XAU/USD | [`0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764`](https://testnet.bscscan.com/address/0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764) |
 
 ### Run the fork locally
 
-Foundry forks BNB Chain (chain id 56), deploys `ShareEscrow` on that fork, and runs deposit, lock, and settle against the live feeds and tokens. Nothing is broadcast.
+Foundry forks BSC testnet (chain id 97), deploys `ShareEscrow` on that fork, and runs deposit, lock, and settle against the live feeds. Nothing is broadcast.
 
 ```bash
 pnpm test:contracts:share:fork
@@ -93,7 +100,25 @@ From `contracts/`:
 forge test --match-path test/ShareEscrow.fork.t.sol -vv
 ```
 
-`testFork_liveFeedsSizeThePilesAndWinnerTakesBoth` quotes both feeds, deposits those share counts, locks $1 per side, and checks the stored prices and counts. After `settle(betId, AWins)`, A withdraws both tokens. A second settle reverts. Override the RPC with `BSC_MAINNET_RPC` if `https://bsc-dataseed.binance.org` is unavailable.
+`testFork_liveFeedsSizeThePilesAndWinnerTakesBoth` quotes both feeds, deposits those share counts, locks $1 per side, and checks the stored prices and counts. After `settle(betId, AWins)`, A withdraws both tokens. A second settle reverts. Override the RPC with `BSC_TESTNET_RPC` when the default public node is unavailable.
+
+### Broadcast on BSC testnet
+
+`script/SimulateShareEscrowTestnet.s.sol` deployed the escrow, minted the two piles, registered the feeds, and ran one $1 match. Player A won.
+
+| | Address |
+|---|---|
+| ShareEscrow | [`0xEB8B7C5105D95E08c09fcf067936e44222BF2A59`](https://testnet.bscscan.com/address/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59) |
+| NVDAB pile | [`0x0132A630fbf6c3570a247ac867E13849529e5208`](https://testnet.bscscan.com/address/0x0132A630fbf6c3570a247ac867E13849529e5208) |
+| XAUt pile | [`0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159`](https://testnet.bscscan.com/address/0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159) |
+
+Source matches the deployed bytecode:
+
+- [ShareEscrow on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59/)
+- [NVDAB pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x0132A630fbf6c3570a247ac867E13849529e5208/)
+- [XAUt pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159/)
+
+[`lock`](https://testnet.bscscan.com/tx/0x9430f2f2f57dc0ba58b82caf04fa6ad73417238f0fb2a6d534dcf21d92e93ba8) froze 0.006652227102728008 NVDAB at $150.32559540697437615 and 0.000279978479791059 XAUt at $3571.7030849880792393. [`settle`](https://testnet.bscscan.com/tx/0x915d440552ead9b569a78205b09f8d18ade5248e2c8eefa5d204e65b7ca92d73) paid both piles to A. The gold print moved between the script's dry-run and the mined `lock`, so A's wallet received 0.000279774185096687 XAUt and 0.000000000204294694372 XAUt is still credited inside the escrow.
 
 ## Deploy again
 
