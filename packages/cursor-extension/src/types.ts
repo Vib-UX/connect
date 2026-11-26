@@ -93,8 +93,16 @@ export interface FlappyView {
   them: number | null;
   themName: string | null;
   winner: "you" | "them" | "draw" | null;
+  insight?: PairInsight | null;
   stake?: string | null;
   balanceUsd?: string | null;
+}
+
+export interface PairInsight {
+  potUsd: number;
+  game: "chess" | "flappy";
+  playedToday: boolean;
+  reason: string;
 }
 
 export interface RematchOffer {
@@ -148,7 +156,7 @@ export type ServerMessage =
   | { type: "challenge"; challenge: ChallengeInfo }
   | { type: "challenge_resolved"; challengeId: string; accepted: boolean; match?: ChessState }
   | { type: "match"; match: ChessState }
-  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean }
+  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean; insight?: PairInsight | null }
   | { type: "error"; message: string; scope?: "reward" | "bank" }
   | { type: "reward"; txHash: string; chainId: number; amount: string; chainName: string }
   | { type: "bank"; bank: BankView }
@@ -164,6 +172,7 @@ export type ServerMessage =
       flappy?: FlappyView | null;
       bank?: BankView;
       rematch?: RematchOffer | null;
+      insight?: PairInsight | null;
     }
   | { type: "snake"; match: SnakeState }
   | { type: "flappy"; flappy: FlappyView }
@@ -188,4 +197,6 @@ export interface UiState {
   drawing: boolean;
   /** Other players already waiting for Next. */
   waiting: number;
+  /** Pairing line: pot, game, and whether they have played today. */
+  insight: { potUsd: number; game: "chess" | "flappy"; playedToday: boolean; reason: string } | null;
 }

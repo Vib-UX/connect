@@ -25,6 +25,7 @@ let chain = Promise.resolve();
 let mcpServer = "";
 let snap = emptySnap();
 let prompts = [];
+let forwardedPrompt = "";
 
 function emptySnap() {
   return {
@@ -179,19 +180,49 @@ async function refresh($) {
   $.ui.invalidate("ui.render");
 }
 
-async function startFromPrompt($) {
+async function forwardPrompt($, text, promptId) {
+  const known = String(text || "").replace(/\s+/g, " ").trim();
+  const id = String(promptId || "");
+  if (!known || (id && forwardedPrompt === id)) return Boolean(known && forwardedPrompt === id);
+  try {
+    await callTool($, "connect_prompt", { prompt: known.slice(0, 8000), model: "claude", promptId: id });
+    if (id) forwardedPrompt = id;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function promptArgs(session) {
+  const args = {};
+  const prompt = session && session.prompt ? String(session.prompt).replace(/\s+/g, " ").trim().slice(0, 8000) : "";
+  const model = session && session.model ? String(session.model).trim().slice(0, 80) : "";
+  const promptId = session && session.promptId ? String(session.promptId).trim().slice(0, 80) : "";
+  if (prompt) args.prompt = prompt;
+  if (model) args.model = model;
+  if (promptId) args.promptId = promptId;
+  return args;
+}
+
+async function startFromPrompt($, session) {
   if (!funded()) {
     lastError = "Deposit USDT on BNB before you play.";
     paintStatus($);
     $.ui.invalidate("ui.render");
     return;
   }
+  const args = promptArgs(session);
   if (game === "chess") {
-    if (!liveChess()) applySnap(await callTool($, "connect_next", {}));
+    if (!liveChess()) applySnap(await callTool($, "connect_next", args));
   } else if (!snap.flappy || snap.flappy.status !== "playing") {
-    applySnap(await callTool($, "connect_flappy_join", {}));
+    applySnap(await callTool($, "connect_flappy_join", args));
   }
   await refresh($);
+}
+
+function insightRow(Text) {
+  if (!snap.insight || !snap.insight.reason) return null;
+  return Text({ key: "insight", color: "subtle", children: [String(snap.insight.reason)] });
 }
 
 function piecesFromFen(fen) {
@@ -578,6 +609,8 @@ function renderChess($, ui) {
   const match = snap.match;
   const active = Boolean(match && match.status === "active");
   const rows = [identityLine(Text)];
+  const insight = insightRow(Text);
+  if (insight) rows.push(insight);
 
   if (!match || match.status !== "active") {
     const wait = snap.drawing
@@ -743,6 +776,8 @@ function renderFlappy($, ui) {
   const flap = snap.flappy;
   const playing = flap && flap.status === "playing";
   const rows = [identityLine(Text)];
+  const insight = insightRow(Text);
+  if (insight) rows.push(insight);
   const line =
     !flap || flap.status === "waiting"
       ? "Waiting for the other player to prompt."
@@ -962,7 +997,8 @@ export function register(on, options = {}) {
   on("turn.start", async ($, e, next) => {
     const text = String(e.text || "").replace(/\s+/g, " ").trim();
     if (e.agentId === undefined && text) {
-      prompts = [{ turnId: e.turnId, text, usage: null }, ...prompts].slice(0, 20);
+      prompts = [{ turnId: e.turnId, text, usage: null }, ...prompts.filter((row) => row.turnId !== e.turnId)].slice(0, 20);
+      await forwardPrompt($, text, e.turnId).catch(() => {});
     }
     return next(e);
   });
@@ -978,9 +1014,18 @@ export function register(on, options = {}) {
   });
 
   on("prompt.submit", async ($, e, next) => {
+    const text = String((e && (e.prompt || e.text || e.message)) || "").replace(/\s+/g, " ").trim();
+    const promptId = String((e && (e.turnId || e.promptId)) || `turn_${Date.now()}`);
+    if (text) {
+      prompts = [{ turnId: promptId, text, usage: null }, ...prompts.filter((row) => row.turnId !== promptId)].slice(0, 20);
+    }
     try {
       if (!paneOpen) await openPane($);
-      await enqueue(() => startFromPrompt($));
+      const known = text || (prompts[0] && prompts[0].text) || "";
+      const forwarded = await forwardPrompt($, known, promptId);
+      await enqueue(() =>
+        startFromPrompt($, forwarded ? { model: "claude", promptId } : { prompt: known, model: "claude", promptId }),
+      );
     } catch (err) {
       noteError($, err);
     }

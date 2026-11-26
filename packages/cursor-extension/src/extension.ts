@@ -182,6 +182,10 @@ export async function activate(context: vscode.ExtensionContext) {
     if (!picked.onboarded) return;
     lastPromptPlay = pending.id;
     // Same as Claude: each prompt enters the chess queue when chess is selected.
+    const session = pending.prompt
+      ? { prompt: pending.prompt, model: pending.model, promptId: pending.id }
+      : undefined;
+    bridge.notePrompt(session);
     if (picked.games.includes("chess")) {
       const match = bridge.state.match;
       if (!match || match.status === "finished") {

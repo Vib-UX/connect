@@ -138,7 +138,8 @@ export type ClientMessage =
   | { type: "respond_challenge"; challengeId: string; accept: boolean }
   | { type: "move"; matchId: string; uci: string }
   | { type: "resign"; matchId: string }
-  | { type: "next" }
+  | { type: "next"; prompt?: string; model?: string; promptId?: string }
+  | { type: "prompt"; prompt: string; model?: string; promptId?: string }
   | { type: "poll" }
   | { type: "set_match_meta"; matchId: string; lockTx?: string; ccipMessageId?: string; payoutTx?: string; status?: ChessState["status"] }
   | { type: "claim_reward"; amount: string }
@@ -147,7 +148,7 @@ export type ClientMessage =
   | { type: "snake_join"; code?: string }
   | { type: "snake_steer"; matchId: string; dir: SnakeDir; boost?: boolean }
   | { type: "snake_leave" }
-  | { type: "flappy_join" }
+  | { type: "flappy_join"; prompt?: string; model?: string; promptId?: string }
   | { type: "flappy_score"; contestId: string; score: number }
   | { type: "rematch"; game: "chess" | "flappy" };
 
@@ -160,6 +161,14 @@ export interface RematchOffer {
   waiting: boolean;
 }
 
+/** What the pair is told: the pot, the game, and whether they have played today. */
+export interface PairInsight {
+  potUsd: number;
+  game: "chess" | "flappy";
+  playedToday: boolean;
+  reason: string;
+}
+
 export interface FlappyView {
   id: string;
   seed: number;
@@ -169,6 +178,8 @@ export interface FlappyView {
   them: number | null;
   themName: string | null;
   winner: "you" | "them" | "draw" | null;
+  /** Dollar size both prompts can cover, and which game fits the wait. */
+  insight?: PairInsight | null;
   /** Shown after the round. $0.05 from one selected chain to the other, or a deposit prompt. */
   stake?: string | null;
   /** Play balance after the round, still held until they claim. */
@@ -221,7 +232,7 @@ export type ServerMessage =
   | { type: "challenge"; challenge: ChallengeInfo }
   | { type: "challenge_resolved"; challengeId: string; accepted: boolean; match?: ChessState }
   | { type: "match"; match: ChessState }
-  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean }
+  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean; insight?: PairInsight | null }
   | { type: "error"; message: string; scope?: "reward" | "bank" }
   | { type: "reward"; txHash: string; chainId: number; amount: string; chainName: string }
   | { type: "bank"; bank: BankView }
@@ -237,6 +248,7 @@ export type ServerMessage =
       flappy: FlappyView | null;
       bank: BankView;
       rematch: RematchOffer | null;
+      insight?: PairInsight | null;
     }
   | { type: "flappy"; flappy: FlappyView }
   | { type: "rematch"; offer: RematchOffer | null }

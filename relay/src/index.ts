@@ -12,6 +12,7 @@ import { PlayBank } from "./bank.js";
 import { matchDrawAddress, pollDraws } from "./draw.js";
 import { createEscrowClient, escrowConfigured } from "./escrow.js";
 import { SNAKE_TICK_MS } from "./snake.js";
+import { livingBrainConfigured, livingBrainFromEnv } from "./livingBrain.js";
 import { RelayStore } from "./store.js";
 import { sendStake } from "./treasury.js";
 
@@ -23,6 +24,7 @@ const store = new RelayStore({
   requireDeposit: true,
   stakeSender: (input) => sendStake(input),
   escrow: createEscrowClient(),
+  brain: livingBrainFromEnv(),
 });
 const app = express();
 app.use(cors());
@@ -34,6 +36,7 @@ app.get("/health", (_req, res) => {
     service: "connect",
     escrow: escrowConfigured(),
     cmc: Boolean(process.env.CMC_API_KEY?.trim()),
+    livingBrain: livingBrainConfigured(),
   });
 });
 

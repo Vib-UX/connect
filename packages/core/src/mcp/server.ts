@@ -180,11 +180,29 @@ export async function createConnectMcpServer(opts: McpServerOptions) {
   );
 
   server.tool(
+    "connect_prompt",
+    "Forward this prompt text to Living Brain. Does not join a queue or resign a live game.",
+    {
+      prompt: z.string().describe("The prompt text"),
+      model: z.string().optional().describe("Model id used to price the prompt"),
+      promptId: z.string().optional().describe("Stable id for this prompt"),
+    },
+    async ({ prompt, model, promptId }) => {
+      connect.relay.notePrompt({ prompt, model, promptId });
+      return json({ forwarded: Boolean(prompt.trim()) });
+    },
+  );
+
+  server.tool(
     "connect_next",
-    "Enter the chess pairing queue. The first player waits. When another player also enters, the relay starts a match immediately. A call during a live match resigns that match.",
-    {},
-    async () => {
-      await connect.relay.nextAsync();
+    "Enter the chess pairing queue. The first player waits. When another player also enters, the relay starts a match immediately. A call during a live match resigns that match. Optional prompt text is priced for pairing and is not kept on the relay.",
+    {
+      prompt: z.string().optional().describe("The prompt that started this wait"),
+      model: z.string().optional().describe("Model id used to price the prompt"),
+      promptId: z.string().optional().describe("Stable id for this prompt"),
+    },
+    async ({ prompt, model, promptId }) => {
+      await connect.relay.nextAsync({ prompt, model, promptId });
       const match = connect.match();
       let legalMoves: string[] = [];
       if (match && match.status !== "finished") {
@@ -199,6 +217,7 @@ export async function createConnectMcpServer(opts: McpServerOptions) {
           seeking: connect.relay.seeking,
           waiting: connect.relay.waiting,
           drawing: connect.relay.drawing,
+          insight: connect.relay.insight,
           match,
           legalMoves,
         },
@@ -255,11 +274,18 @@ export async function createConnectMcpServer(opts: McpServerOptions) {
 
   server.tool(
     "connect_flappy_join",
-    "Enter the flappy pairing queue. The first player waits. When another player also enters, both fly the same course on their own machines. The relay only compares the final scores.",
-    {},
-    async () => {
-      const msg = await connect.relay.flappyJoinAsync();
-      return json({ flappy: msg.type === "flappy" ? msg.flappy : null });
+    "Enter the flappy pairing queue. The first player waits. When another player also enters, both fly the same course on their own machines. The relay only compares the final scores. Optional prompt text is priced for pairing and is not kept on the relay.",
+    {
+      prompt: z.string().optional().describe("The prompt that started this wait"),
+      model: z.string().optional().describe("Model id used to price the prompt"),
+      promptId: z.string().optional().describe("Stable id for this prompt"),
+    },
+    async ({ prompt, model, promptId }) => {
+      const msg = await connect.relay.flappyJoinAsync({ prompt, model, promptId });
+      return json({
+        flappy: msg.type === "flappy" ? msg.flappy : null,
+        insight: connect.relay.insight,
+      });
     },
   );
 

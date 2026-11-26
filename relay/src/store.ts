@@ -26,6 +26,13 @@ import {
 } from "./escrow.js";
 import { payReward } from "./treasury.js";
 import { applyMove, applyResign, checkTimeout, createMatch } from "./chess.js";
+import {
+  minutesFromCost,
+  predictPromptCost,
+  scorePair,
+  type BrainCapture,
+  type PairSeat,
+} from "./livingBrain.js";
 import { kickWorkflow, makePairId, whiteIsFirst } from "./draw.js";
 import {
   PUBLIC_SNAKE_ROOM,
@@ -49,17 +56,28 @@ import type {
   FlappyView,
   PayoutReceipt,
   RematchOffer,
+  PairInsight,
   ConnectIdentity,
   SnakeDir,
   SnakeState,
   StakeTransfer,
 } from "./types.js";
 
+interface SessionSignal {
+  costUsd: number;
+  minutesLeft: number;
+  promptId: string;
+  at: number;
+  similar?: string;
+}
+
 interface Conn {
   ws: WebSocket;
   identity: ConnectIdentity | null;
   roomCode: string | null;
   lastSeen: number;
+  /** Dollars and minutes from the latest prompt. The prompt text is not kept. */
+  signal: SessionSignal | null;
 }
 
 interface FlappySeat {
@@ -130,6 +148,8 @@ export class RelayStore {
       stakeSender?: StakeSend;
       /** ConnectEscrow on BNB Chain. When configured, balances and stakes live there. */
       escrow?: EscrowClient;
+      /** Living Brain capture. Absent when the API key is unset, and in tests that do not care. */
+      brain?: BrainCapture | null;
     },
   ) {
     this.bank = options?.bank ?? new PlayBank();
@@ -164,17 +184,29 @@ export class RelayStore {
   private flappyByPlayer = new Map<ConnectId, string>();
   private pending = new Map<`0x${string}`, PendingDraw>();
   private rematches = new Map<string, RematchWait>();
+  /** When a player entered the chess or flappy queue. */
+  private queuedAt = new Map<ConnectId, number>();
+  /** Recent opponents, newest last. Used for the novelty weight and the "played today" line. */
+  private played = new Map<ConnectId, { id: ConnectId; at: number }[]>();
+  private insights = new Map<ConnectId, PairInsight>();
   challenges = new Map<string, ChallengeInfo>();
 
+  /** Predicted cost for a connected player. Never includes the prompt text. */
+  sessionFor(id: ConnectId): { costUsd: number; minutesLeft: number; promptId: string } | null {
+    const signal = this.byId.get(id)?.signal;
+    if (!signal) return null;
+    return { costUsd: signal.costUsd, minutesLeft: signal.minutesLeft, promptId: signal.promptId };
+  }
+
   add(ws: WebSocket): void {
-    this.conns.set(ws, { ws, identity: null, roomCode: null, lastSeen: Date.now() });
+    this.conns.set(ws, { ws, identity: null, roomCode: null, lastSeen: Date.now(), signal: null });
   }
 
   remove(ws: WebSocket): void {
     const conn = this.conns.get(ws);
     if (!conn) return;
     if (conn.identity) {
-      this.queue = this.queue.filter((id) => id !== conn.identity!.id);
+      this.leaveQueue(conn.identity!.id);
       this.cancelDraw(conn.identity.id, "Your partner left before the draw.");
       this.dropSnakePlayer(conn.identity.id);
       this.abandonFlappy(conn.identity.id);
@@ -233,7 +265,10 @@ export class RelayStore {
           this.onResign(conn, msg.matchId);
           break;
         case "next":
-          this.onNext(conn);
+          this.onNext(conn, msg.prompt, msg.model, msg.promptId);
+          break;
+        case "prompt":
+          this.noteSession(conn, msg.prompt, msg.model, msg.promptId);
           break;
         case "poll":
           this.onPoll(conn);
@@ -260,7 +295,7 @@ export class RelayStore {
           this.onSnakeLeave(conn);
           break;
         case "flappy_join":
-          this.onFlappyJoin(conn);
+          this.onFlappyJoin(conn, msg.prompt, msg.model, msg.promptId);
           break;
         case "flappy_score":
           this.onFlappyScore(conn, msg.contestId, msg.score);
@@ -666,6 +701,7 @@ export class RelayStore {
     this.afterLock(
       pending,
       () => {
+        this.notePlayed(challenge.from, challenge.to);
         this.matches.set(match.matchId, match);
         const room = this.rooms.get(code);
         if (room) {
@@ -704,16 +740,20 @@ export class RelayStore {
   }
 
   /**
-   * Omegle-style pairing. The first Next waits. The next Next starts a game
-   * with whoever has been waiting the longest. No room code and no accept step.
+   * Pairing. The first Next waits. The next Next starts a game with the
+   * best-scoring person already waiting: similar prompt cost, a different
+   * IDE, a new opponent, and a long wait. No room code and no accept step.
    * Next during a live game leaves that game and looks for someone else.
+   * A named challenge and a rematch do not come through here.
    */
-  private onNext(conn: Conn): void {
+  private onNext(conn: Conn, prompt?: string, model?: string, promptId?: string): void {
     if (!conn.identity) throw new Error("Say hello first");
     this.dropRematch(conn.identity.id);
     this.assertDeposit(conn);
+    this.noteSession(conn, prompt, model, promptId);
     const me = conn.identity.id;
-    this.queue = this.queue.filter((id) => id !== me);
+    this.insights.delete(me);
+    this.leaveQueue(me);
     this.cancelDraw(me, "");
 
     const active = this.activeMatch(conn);
@@ -724,13 +764,13 @@ export class RelayStore {
       this.commitMatch(finished);
     }
 
-    const partnerId = this.queue.find(
-      (id) => id !== me && id !== avoid && this.byId.has(id),
-    );
-    if (partnerId) {
-      this.queue = this.queue.filter((id) => id !== partnerId);
+    const picked = this.pickPartner(me, this.queue, avoid);
+    if (picked) {
+      const partnerId = picked.id;
+      this.leaveQueue(partnerId);
       const partner = this.byId.get(partnerId);
       if (!partner?.identity) throw new Error("Peer offline");
+      this.rememberInsight(me, partnerId, picked.insight);
       const code = this.ensureSharedRoom(conn, partner);
       if (this.drawsOn()) {
         const pairId = makePairId(partnerId, me);
@@ -755,6 +795,7 @@ export class RelayStore {
       this.afterLock(
         pending,
         () => {
+          this.notePlayed(me, partnerId);
           this.matches.set(match.matchId, match);
           const room = this.rooms.get(code);
           if (room) {
@@ -773,13 +814,13 @@ export class RelayStore {
           const message = err instanceof Error ? err.message : String(err);
           this.send(conn.ws, { type: "error", message });
           this.send(partner.ws, { type: "error", message });
-          this.queue.push(partnerId);
+          this.joinQueue(partnerId);
         },
       );
       return;
     }
 
-    this.queue.push(me);
+    this.joinQueue(me);
     this.sendQueue(conn);
     this.broadcastPeers();
   }
@@ -816,7 +857,126 @@ export class RelayStore {
       seeking: this.queue.includes(conn.identity.id) || drawing,
       waiting: this.othersWaiting(conn.identity.id),
       drawing,
+      insight: this.insights.get(conn.identity.id) ?? null,
     });
+  }
+
+  private joinQueue(id: ConnectId): void {
+    if (this.queue.includes(id)) return;
+    this.queue.push(id);
+    this.queuedAt.set(id, Date.now());
+  }
+
+  private leaveQueue(id: ConnectId): void {
+    this.queue = this.queue.filter((item) => item !== id);
+    if (!this.flappyQueue.includes(id)) this.queuedAt.delete(id);
+  }
+
+  private joinFlappy(id: ConnectId): void {
+    if (this.flappyQueue.includes(id)) return;
+    this.flappyQueue.push(id);
+    this.queuedAt.set(id, Date.now());
+  }
+
+  private leaveFlappy(id: ConnectId): void {
+    this.flappyQueue = this.flappyQueue.filter((item) => item !== id);
+    if (!this.queue.includes(id)) this.queuedAt.delete(id);
+  }
+
+  private rememberInsight(a: ConnectId, b: ConnectId, insight: PairInsight): void {
+    this.insights.set(a, insight);
+    this.insights.set(b, insight);
+  }
+
+  private notePlayed(a: ConnectId, b: ConnectId): void {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    for (const [from, to] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const rows = (this.played.get(from) ?? []).filter((row) => now - row.at < day);
+      rows.push({ id: to, at: now });
+      this.played.set(from, rows.slice(-24));
+    }
+  }
+
+  private faced(me: ConnectId, them: ConnectId, now: number): { recent: boolean; today: boolean } {
+    const rows = (this.played.get(me) ?? []).filter((row) => row.id === them);
+    const recent = rows.some((row) => now - row.at < 3 * 60 * 60 * 1000);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return { recent, today: rows.some((row) => row.at >= start.getTime()) };
+  }
+
+  private seat(conn: Conn, other: ConnectId, now: number): PairSeat {
+    const id = conn.identity!.id;
+    const faced = this.faced(id, other, now);
+    return {
+      id,
+      host: conn.identity!.host,
+      costUsd: conn.signal?.costUsd ?? 0,
+      minutesLeft: conn.signal?.minutesLeft ?? 8,
+      waitedMs: Math.max(0, now - (this.queuedAt.get(id) ?? now)),
+      recentOpponent: faced.recent,
+      playedToday: faced.today,
+    };
+  }
+
+  /** Best waiting partner. Equal scores keep queue order, so an unpriced pair stays first-in. */
+  private pickPartner(
+    me: ConnectId,
+    queue: ConnectId[],
+    avoid: ConnectId | null,
+  ): { id: ConnectId; insight: PairInsight } | null {
+    const mine = this.byId.get(me);
+    if (!mine?.identity) return null;
+    const now = Date.now();
+    let best: { id: ConnectId; score: number; insight: PairInsight } | null = null;
+    for (const id of queue) {
+      if (id === me || id === avoid || !this.byId.has(id)) continue;
+      const them = this.byId.get(id);
+      if (!them?.identity) continue;
+      const scored = scorePair(this.seat(mine, id, now), this.seat(them, me, now), mine.signal?.similar);
+      if (!best || scored.score > best.score) best = { id, score: scored.score, insight: scored.insight };
+    }
+    return best;
+  }
+
+  /** Price the prompt, forward the text to Living Brain, and drop it. */
+  private noteSession(conn: Conn, prompt?: string, model?: string, promptId?: string): void {
+    if (!conn.identity) return;
+    const text = (prompt ?? "").replace(/\s+/g, " ").trim().slice(0, 8000);
+    if (!text) return;
+    const modelName = (model ?? "").trim().slice(0, 80);
+    const costUsd = predictPromptCost(text, modelName);
+    const minutesLeft = minutesFromCost(costUsd);
+    const originRef = (promptId ?? "").trim().slice(0, 80) || `prompt_${conn.identity.id}_${Date.now()}`;
+    conn.signal = { costUsd, minutesLeft, promptId: originRef, at: Date.now() };
+    const brain = this.options?.brain;
+    if (!brain) return;
+    const connectId = conn.identity.id;
+    const host = conn.identity.host;
+    void brain
+      .capture({
+        text,
+        originRef,
+        label: `${host} prompt`,
+        connectId,
+        host,
+        model: modelName,
+        costUsd,
+        minutesLeft,
+      })
+      .catch(() => undefined);
+    void brain
+      .search(text.slice(0, 280))
+      .then((hits) => {
+        if (conn.signal?.promptId !== originRef) return;
+        const top = hits.find((hit) => hit.similarity >= 0.55 && hit.summary.trim());
+        if (top) conn.signal.similar = top.summary.trim().slice(0, 160);
+      })
+      .catch(() => undefined);
   }
 
   pendingPair(): `0x${string}` | null {
@@ -844,6 +1004,7 @@ export class RelayStore {
     this.afterLock(
       pending,
       () => {
+        this.notePlayed(held.first, held.second);
         this.matches.set(match.matchId, match);
         const room = this.rooms.get(held.roomCode);
         if (room) {
@@ -875,7 +1036,7 @@ export class RelayStore {
       const otherId = draw.first === id ? draw.second : draw.first;
       const other = this.byId.get(otherId);
       if (other && message) this.send(other.ws, { type: "error", message });
-      if (other && !this.queue.includes(otherId)) this.queue.push(otherId);
+      if (other) this.joinQueue(otherId);
       if (other) this.sendQueue(other);
     }
   }
@@ -941,6 +1102,7 @@ export class RelayStore {
         them: null,
         themName: null,
         winner: null,
+        insight: this.insights.get(id) ?? null,
         stake: null,
       };
     }
@@ -961,6 +1123,7 @@ export class RelayStore {
       them: them.score,
       themName: them.name,
       winner,
+      insight: this.insights.get(id) ?? null,
       stake: contest.status === "done" ? (this.transfers.get(id)?.line ?? null) : null,
       balanceUsd: contest.status === "done" ? this.balanceUsdFor(id) : null,
     };
@@ -986,27 +1149,31 @@ export class RelayStore {
     }
   }
 
-  private onFlappyJoin(conn: Conn): void {
+  private onFlappyJoin(conn: Conn, prompt?: string, model?: string, promptId?: string): void {
     if (!conn.identity) throw new Error("Say hello first");
     this.dropRematch(conn.identity.id);
     this.assertDeposit(conn);
+    this.noteSession(conn, prompt, model, promptId);
     const me = conn.identity.id;
+    this.insights.delete(me);
     const existing = this.flappyFor(me);
     if (existing && existing.status === "playing") {
       this.sendFlappy(conn);
       return;
     }
-    this.flappyQueue = this.flappyQueue.filter((id) => id !== me);
+    this.leaveFlappy(me);
     if (existing) this.flappyByPlayer.delete(me);
-    const partnerId = this.flappyQueue.find((id) => id !== me && this.byId.has(id));
-    if (!partnerId) {
-      this.flappyQueue.push(me);
+    const picked = this.pickPartner(me, this.flappyQueue, null);
+    if (!picked) {
+      this.joinFlappy(me);
       this.sendFlappy(conn);
       return;
     }
-    this.flappyQueue = this.flappyQueue.filter((id) => id !== partnerId);
+    const partnerId = picked.id;
+    this.leaveFlappy(partnerId);
     const partner = this.byId.get(partnerId);
     if (!partner?.identity) throw new Error("Peer offline");
+    this.rememberInsight(me, partnerId, picked.insight);
     const stake = this.playStake();
     const contest: FlappyContest = {
       id: `flap_${randomBytes(3).toString("hex")}`,
@@ -1021,6 +1188,7 @@ export class RelayStore {
     this.afterLock(
       pending,
       () => {
+        this.notePlayed(me, partnerId);
         this.flappies.set(contest.id, contest);
         this.flappyByPlayer.set(partnerId, contest.id);
         this.flappyByPlayer.set(me, contest.id);
@@ -1031,7 +1199,7 @@ export class RelayStore {
         const message = err instanceof Error ? err.message : String(err);
         this.send(conn.ws, { type: "error", message });
         this.send(partner.ws, { type: "error", message });
-        this.flappyQueue.push(partnerId);
+        this.joinFlappy(partnerId);
       },
     );
   }
@@ -1053,7 +1221,7 @@ export class RelayStore {
   }
 
   private abandonFlappy(id: ConnectId): void {
-    this.flappyQueue = this.flappyQueue.filter((queued) => queued !== id);
+    this.leaveFlappy(id);
     const contest = this.flappyFor(id);
     this.flappyByPlayer.delete(id);
     if (!contest || contest.status === "done") return;
@@ -1081,6 +1249,7 @@ export class RelayStore {
         flappy: this.flappyView(id),
         bank: this.bankView(conn),
         rematch: this.rematchView(id),
+        insight: this.insights.get(id) ?? null,
         challenges: [...this.challenges.values()].filter((c) => c.to === id || c.from === id),
       });
       this.sendBank(conn);
@@ -1234,7 +1403,10 @@ export class RelayStore {
     if (!a.identity || !b.identity) throw new Error("Peer offline");
     this.assertDeposit(a);
     this.assertDeposit(b);
-    this.queue = this.queue.filter((id) => id !== a.identity!.id && id !== b.identity!.id);
+    this.leaveQueue(a.identity.id);
+    this.leaveQueue(b.identity.id);
+    this.insights.delete(a.identity.id);
+    this.insights.delete(b.identity.id);
     const code = this.ensureSharedRoom(a, b);
     const stake = this.playStake();
     const match = createMatch(code, a.identity.id, b.identity.id, stake);
@@ -1242,6 +1414,7 @@ export class RelayStore {
     const blackConn = match.white === a.identity.id ? b : a;
     const pending = this.lockBet(match.matchId, whiteConn, blackConn, parseStake(stake));
     this.afterLock(pending, () => {
+      this.notePlayed(a.identity!.id, b.identity!.id);
       this.matches.set(match.matchId, match);
       const room = this.rooms.get(code);
       if (room) {
@@ -1261,9 +1434,10 @@ export class RelayStore {
     if (!a.identity || !b.identity) throw new Error("Peer offline");
     this.assertDeposit(a);
     this.assertDeposit(b);
-    this.flappyQueue = this.flappyQueue.filter(
-      (id) => id !== a.identity!.id && id !== b.identity!.id,
-    );
+    this.leaveFlappy(a.identity.id);
+    this.leaveFlappy(b.identity.id);
+    this.insights.delete(a.identity.id);
+    this.insights.delete(b.identity.id);
     const stake = this.playStake();
     const contest: FlappyContest = {
       id: `flap_${randomBytes(3).toString("hex")}`,
@@ -1276,6 +1450,7 @@ export class RelayStore {
     };
     const pending = this.lockBet(contest.id, a, b, parseStake(stake));
     this.afterLock(pending, () => {
+      this.notePlayed(a.identity!.id, b.identity!.id);
       this.flappies.set(contest.id, contest);
       this.flappyByPlayer.set(a.identity!.id, contest.id);
       this.flappyByPlayer.set(b.identity!.id, contest.id);
@@ -1300,11 +1475,11 @@ export class RelayStore {
     }
 
     if (game === "chess") {
-      this.queue = this.queue.filter((id) => id !== me);
+      this.leaveQueue(me);
       this.cancelDraw(me, "");
       this.sendQueue(conn);
     } else {
-      this.flappyQueue = this.flappyQueue.filter((id) => id !== me);
+      this.leaveFlappy(me);
     }
 
     const key = this.rematchKey(game, me, opponentId);

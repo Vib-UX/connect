@@ -11,6 +11,7 @@ import type {
   FlappyView,
   BankView,
   RematchOffer,
+  PairInsight,
   SnakeDir,
   SnakeState,
 } from "./types.js";
@@ -42,6 +43,7 @@ export class RelayClient {
   seeking = false;
   waiting = 0;
   drawing = false;
+  insight: PairInsight | null = null;
   connected = false;
 
   constructor(
@@ -180,12 +182,14 @@ export class RelayClient {
         this.seeking = msg.seeking;
         this.waiting = msg.waiting;
         this.drawing = Boolean(msg.drawing);
+        this.insight = msg.insight ?? null;
         break;
       case "snake":
         this.snake = msg.match;
         break;
       case "flappy":
         this.flappy = msg.flappy;
+        if (msg.flappy.insight) this.insight = msg.flappy.insight;
         break;
       case "bank":
         this.bank = msg.bank;
@@ -203,6 +207,7 @@ export class RelayClient {
         this.challenges = msg.challenges;
         if (msg.bank) this.bank = msg.bank;
         if ("rematch" in msg) this.rematch = msg.rematch ?? null;
+        if ("insight" in msg) this.insight = msg.insight ?? null;
         break;
       default:
         break;
@@ -307,21 +312,28 @@ export class RelayClient {
     return this.request("bank_paid", () => this.send({ type: "claim_balance" }), 60000);
   }
 
+  /** Send the prompt text for Living Brain. Does not join a queue or resign a live game. */
+  notePrompt(session?: { prompt?: string; model?: string; promptId?: string }): void {
+    const fields = promptSession(session);
+    if (!fields.prompt) return;
+    this.send({ type: "prompt", prompt: fields.prompt, model: fields.model, promptId: fields.promptId });
+  }
+
   /** Join the pairing queue. The relay replies with `queue`, and with `match` when someone is already waiting. */
-  next(): void {
-    this.send({ type: "next" });
+  next(session?: { prompt?: string; model?: string; promptId?: string }): void {
+    this.send({ type: "next", ...promptSession(session) });
   }
 
-  nextAsync(): Promise<ServerMessage> {
-    return this.request("queue", () => this.next());
+  nextAsync(session?: { prompt?: string; model?: string; promptId?: string }): Promise<ServerMessage> {
+    return this.request("queue", () => this.next(session));
   }
 
-  flappyJoin(): void {
-    this.send({ type: "flappy_join" });
+  flappyJoin(session?: { prompt?: string; model?: string; promptId?: string }): void {
+    this.send({ type: "flappy_join", ...promptSession(session) });
   }
 
-  flappyJoinAsync(): Promise<ServerMessage> {
-    return this.request("flappy", () => this.flappyJoin());
+  flappyJoinAsync(session?: { prompt?: string; model?: string; promptId?: string }): Promise<ServerMessage> {
+    return this.request("flappy", () => this.flappyJoin(session));
   }
 
   flappyScore(contestId: string, score: number): void {
@@ -431,4 +443,20 @@ export class RelayClient {
         msg.match.fen !== beforeFen,
     );
   }
+}
+
+function promptSession(session?: { prompt?: string; model?: string; promptId?: string }): {
+  prompt?: string;
+  model?: string;
+  promptId?: string;
+} {
+  if (!session) return {};
+  const prompt = session.prompt?.replace(/\s+/g, " ").trim().slice(0, 8000);
+  const model = session.model?.trim().slice(0, 80);
+  const promptId = session.promptId?.trim().slice(0, 80);
+  return {
+    ...(prompt ? { prompt } : {}),
+    ...(model ? { model } : {}),
+    ...(promptId ? { promptId } : {}),
+  };
 }

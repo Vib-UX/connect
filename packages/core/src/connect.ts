@@ -140,6 +140,7 @@ export class ConnectClient {
       seeking: this.relay.seeking,
       waiting: this.relay.waiting,
       drawing: this.relay.drawing,
+      insight: this.relay.insight,
       legalMoves,
       flappy: this.relay.flappy,
       bank: this.relay.bank,

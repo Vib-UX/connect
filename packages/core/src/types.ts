@@ -135,7 +135,8 @@ export type ClientMessage =
   | { type: "respond_challenge"; challengeId: string; accept: boolean }
   | { type: "move"; matchId: string; uci: string }
   | { type: "resign"; matchId: string }
-  | { type: "next" }
+  | { type: "next"; prompt?: string; model?: string; promptId?: string }
+  | { type: "prompt"; prompt: string; model?: string; promptId?: string }
   | { type: "poll" }
   | {
       type: "set_match_meta";
@@ -148,11 +149,19 @@ export type ClientMessage =
   | { type: "snake_join"; code?: string }
   | { type: "snake_steer"; matchId: string; dir: SnakeDir; boost?: boolean }
   | { type: "snake_leave" }
-  | { type: "flappy_join" }
+  | { type: "flappy_join"; prompt?: string; model?: string; promptId?: string }
   | { type: "flappy_score"; contestId: string; score: number }
   | { type: "rematch"; game: "chess" | "flappy" }
   | { type: "sync_deposit" }
   | { type: "claim_balance" };
+
+/** What the pair is told: the pot, the game, and whether they have played today. */
+export interface PairInsight {
+  potUsd: number;
+  game: "chess" | "flappy";
+  playedToday: boolean;
+  reason: string;
+}
 
 export interface RematchOffer {
   game: "chess" | "flappy";
@@ -171,6 +180,8 @@ export interface FlappyView {
   them: number | null;
   themName: string | null;
   winner: "you" | "them" | "draw" | null;
+  /** Dollar size both prompts can cover, and which game fits the wait. */
+  insight?: PairInsight | null;
   stake?: string | null;
   balanceUsd?: string | null;
 }
@@ -200,7 +211,7 @@ export type ServerMessage =
   | { type: "challenge"; challenge: ChallengeInfo }
   | { type: "challenge_resolved"; challengeId: string; accepted: boolean; match?: ChessState }
   | { type: "match"; match: ChessState }
-  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean }
+  | { type: "queue"; seeking: boolean; waiting: number; drawing?: boolean; insight?: PairInsight | null }
   | { type: "error"; message: string; scope?: "reward" | "bank" }
   | { type: "bank"; bank: BankView }
   | { type: "bank_paid"; txHash: string; chainName: string; usd: string }
@@ -216,6 +227,7 @@ export type ServerMessage =
       flappy?: FlappyView | null;
       bank?: BankView;
       rematch?: RematchOffer | null;
+      insight?: PairInsight | null;
     }
   | { type: "flappy"; flappy: FlappyView }
   | { type: "rematch"; offer: RematchOffer | null };

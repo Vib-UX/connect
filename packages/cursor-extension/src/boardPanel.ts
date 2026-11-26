@@ -653,6 +653,14 @@ export class BoardPanel {
       }
     }
 
+    function insightHtml() {
+      const reason = state && state.insight && state.insight.reason;
+      if (!reason) return '';
+      return '<div>' + String(reason).replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+      }) + '</div>';
+    }
+
     function render() {
       const match = state && state.match;
       const me = state && state.me;
@@ -666,7 +674,7 @@ export class BoardPanel {
           $('info').innerHTML = '<div>You are paired. Choosing who plays white. The board opens when it is ready.</div>';
         } else if (state && state.seeking) {
           $('subtitle').textContent = 'Waiting for the next person…';
-          $('info').innerHTML = '<div>You are in the queue. When someone else hits <strong>Next</strong>, this board fills in.</div>';
+          $('info').innerHTML = '<div>You are in the queue. When someone else hits <strong>Next</strong>, this board fills in.</div>' + insightHtml();
         } else if (state && state.waiting > 0) {
           $('subtitle').textContent = 'Someone is waiting. Hit Next.';
           $('info').innerHTML = '<div>Next opens a game with the person already waiting. No room code.</div>';
@@ -689,6 +697,7 @@ export class BoardPanel {
         '<div class="mono">W ' + match.white + '</div>' +
         '<div class="mono">B ' + match.black + '</div>' +
         (match.result ? '<div>' + chessResult(match, me) + '</div>' : '') +
+        insightHtml() +
         (settled ? '<div><a class="settlement" href="' + settled + '">' + chessVerb(match, me) + ' · ' + settled + '</a></div>' : '') +
         (match.status === 'finished' ? claimLine() : '');
       const settledLink = $('info').querySelector('a.settlement');

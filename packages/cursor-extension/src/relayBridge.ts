@@ -15,6 +15,7 @@ import type {
   FlappyView,
   BankView,
   RematchOffer,
+  PairInsight,
   SnakeDir,
   SnakeState,
   UiState,
@@ -151,6 +152,7 @@ export class RelayBridge {
   seeking = false;
   waiting = 0;
   drawing = false;
+  insight: PairInsight | null = null;
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connecting = false;
@@ -180,6 +182,7 @@ export class RelayBridge {
       seeking: this.seeking,
       waiting: this.waiting,
       drawing: this.drawing,
+      insight: this.insight,
     };
   }
 
@@ -344,6 +347,7 @@ export class RelayBridge {
         return;
       case "flappy":
         this.flappy = msg.flappy;
+        if (msg.flappy.insight) this.insight = msg.flappy.insight;
         if (msg.flappy.status === "done") this.lastGame = "flappy";
         if (msg.flappy.status === "playing" && this.rematch?.game === "flappy") this.rematch = null;
         break;
@@ -366,6 +370,7 @@ export class RelayBridge {
         this.seeking = msg.seeking;
         this.waiting = msg.waiting;
         this.drawing = Boolean(msg.drawing);
+        this.insight = msg.insight ?? null;
         break;
       case "poll_state":
         this.peers = msg.peers;
@@ -380,6 +385,8 @@ export class RelayBridge {
           for (const fn of this.bankListeners) fn(msg.bank);
         }
         if ("rematch" in msg) this.rematch = msg.rematch ?? null;
+        if ("insight" in msg) this.insight = msg.insight ?? null;
+        if (msg.flappy?.insight) this.insight = msg.flappy.insight;
         if (msg.match?.status === "finished") this.lastGame = this.lastGame ?? "chess";
         if (msg.flappy?.status === "done") this.lastGame = this.lastGame ?? "flappy";
         if (msg.match && msg.match.status !== "finished") this.drawing = false;
@@ -479,10 +486,17 @@ export class RelayBridge {
     this.send({ type: "resign", matchId });
   }
 
+  /** Forward the prompt text. A live game stays as it is. */
+  notePrompt(session?: { prompt?: string; model?: string; promptId?: string }) {
+    const fields = promptSession(session);
+    if (!fields.prompt) return;
+    this.send({ type: "prompt", ...fields });
+  }
+
   /** Pair with whoever is already waiting, or wait for the next person. */
-  next() {
+  next(session?: { prompt?: string; model?: string; promptId?: string }) {
     this.error = null;
-    this.send({ type: "next" });
+    this.send({ type: "next", ...promptSession(session) });
   }
 
   poll() {
@@ -490,9 +504,9 @@ export class RelayBridge {
   }
 
   /** Pair with whoever is waiting to fly. The relay compares the two scores. */
-  flappyJoin() {
+  flappyJoin(session?: { prompt?: string; model?: string; promptId?: string }) {
     this.error = null;
-    this.send({ type: "flappy_join" });
+    this.send({ type: "flappy_join", ...promptSession(session) });
   }
 
   flappyScore(contestId: string, score: number) {
@@ -538,4 +552,20 @@ export class RelayBridge {
     this.send({ type: "hello", identity: this.me });
     this.emit();
   }
+}
+
+function promptSession(session?: { prompt?: string; model?: string; promptId?: string }): {
+  prompt?: string;
+  model?: string;
+  promptId?: string;
+} {
+  if (!session) return {};
+  const prompt = session.prompt?.replace(/\s+/g, " ").trim().slice(0, 8000);
+  const model = session.model?.trim().slice(0, 80);
+  const promptId = session.promptId?.trim().slice(0, 80);
+  return {
+    ...(prompt ? { prompt } : {}),
+    ...(model ? { model } : {}),
+    ...(promptId ? { promptId } : {}),
+  };
 }
