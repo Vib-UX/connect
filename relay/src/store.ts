@@ -1448,10 +1448,10 @@ export class RelayStore {
             resolved === "draw" ? "won" : id === winnerId ? "won" : "lost";
           const line =
             resolved === "draw"
-              ? `Draw. ${STAKE_USD} returned on ${chainName}.`
+              ? `Draw on ${chainName}.`
               : lineYou === "won"
-                ? `Won ${STAKE_USD} on ${chainName}.`
-                : `Lost ${STAKE_USD} on ${chainName}.`;
+                ? `Won on ${chainName}.`
+                : `Lost on ${chainName}.`;
           this.rememberSettlement(id, {
             id: key,
             you: lineYou,

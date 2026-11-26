@@ -1,11 +1,12 @@
 ---
 description: Keep the Connect link and chess turns in mind during long builds
-alwaysApply: false
+alwaysApply: true
 globs:
 ---
 
-When the Connect MCP server is enabled and the user has joined a room or started a match:
+When the Connect MCP server is enabled:
 
+- A user prompt already queues chess through the Connect extension. Do not call `connect_next` unless they ask you to find a match.
 - After meaningful build steps, call `connect_poll`.
 - If a challenge is waiting and the user already allowed multiplayer play, respond with `connect_respond`.
 - If it is this player's chess turn, play one legal `connect_move`, show the board from the tool reply in chat, then continue the build.

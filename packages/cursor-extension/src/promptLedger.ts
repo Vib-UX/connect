@@ -57,6 +57,34 @@ function money(usd: number): string {
   return `$${usd.toFixed(4)}`;
 }
 
+/** Prompt that was running when the match settled. Newest start at or before `at`. */
+export function promptNear(at: number, rows: PromptRecord[] = readPromptRecords()): PromptRecord | null {
+  let best: PromptRecord | null = null;
+  for (const row of rows) {
+    const started = row.at || 0;
+    if (!started || started > at) continue;
+    if (row.status === "pending") continue;
+    if (!best || started > (best.at || 0)) best = row;
+  }
+  return best;
+}
+
+/** Win/loss line sized like the prompt cost, not the fixed escrow stake. */
+export function prizeFromPrompt(
+  result: "won" | "lost" | "draw",
+  at: number,
+  rows?: PromptRecord[],
+): string {
+  const row = promptNear(at, rows);
+  if (!row) return "";
+  const cost = promptCostUsd(row);
+  if (cost <= 0) return "";
+  const amount = money(cost);
+  if (result === "lost") return `-${amount}`;
+  if (result === "won") return `+${amount}`;
+  return amount;
+}
+
 function commas(value: number): string {
   return Math.max(0, Math.round(value)).toLocaleString("en-US");
 }

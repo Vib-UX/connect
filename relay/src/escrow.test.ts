@@ -95,9 +95,9 @@ test("a 0.1 escrow balance covers many 0.001 staked matches without another depo
   const loserSock = loser === A ? ada : bob;
   const won = last(winnerSock.sent, "bank").bank;
   const lost = last(loserSock.sent, "bank").bank;
-  assert.equal(won.ledger[0]?.line, "Won $0.001 on BNB testnet.");
+  assert.equal(won.ledger[0]?.line, "Won on BNB testnet.");
   assert.match(won.ledger[0]?.href ?? "", /testnet\.bscscan\.com\/tx\/0x2222/);
-  assert.equal(lost.ledger[0]?.line, "Lost $0.001 on BNB testnet.");
+  assert.equal(lost.ledger[0]?.line, "Lost on BNB testnet.");
   assert.equal(lost.ledger[0]?.href, won.ledger[0]?.href);
   assert.equal(bank.balanceOf(ADA, 97), 0n);
   assert.equal(bank.balanceOf(BOB, 97), 0n);

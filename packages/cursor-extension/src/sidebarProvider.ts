@@ -1,8 +1,16 @@
 import * as vscode from "vscode";
 import type { Credits } from "./credits";
 import type { GameId, PrefsStore } from "./prefs";
-import { depositPage, formatUsdt, readEscrowBalance, readLatestDeposit, readSettlements, startDepositPage } from "./depositSigner";
+import {
+  depositPage,
+  formatUsdt,
+  readEscrowBalance,
+  readLatestDeposit,
+  readSettlements,
+  startDepositPage,
+} from "./depositSigner";
 import type { PromptLedger } from "./promptLedger";
+import { prizeFromPrompt } from "./promptLedger";
 import { EVM_CHAINS, GAME_IDS, escrowAddressFor, isEvmAddress } from "./prefs";
 import { scrubBank, type RelayBridge } from "./relayBridge";
 import type { BankView, UiState } from "./types";
@@ -40,7 +48,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this.unsub = this.bridge.onChange((state, kind) => {
       if (kind === "snake") return;
       this.postState(state);
-      const chess = state.match?.status === "finished" ? state.match.matchId : "";
+      const chess =
+        state.match?.status === "finished" ? state.match.matchId : "";
       const flap = state.flappy?.status === "done" ? state.flappy.id : "";
       const key = `${chess}|${flap}`;
       if ((chess || flap) && key !== this.seenResult) {
@@ -77,7 +86,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           if (msg.to) this.bridge.ping(msg.to, String(msg.text ?? "hello"));
           break;
         case "challenge":
-          if (msg.to) this.bridge.challenge(msg.to, String(msg.stakeWei ?? "0"));
+          if (msg.to)
+            this.bridge.challenge(msg.to, String(msg.stakeWei ?? "0"));
           break;
         case "respond":
           this.bridge.respond(String(msg.challengeId), Boolean(msg.accept));
@@ -94,11 +104,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           void this.publishEscrow();
           break;
         case "rematch":
-          if (msg.game === "chess" || msg.game === "flappy") this.bridge.askRematch(msg.game);
+          if (msg.game === "chess" || msg.game === "flappy")
+            this.bridge.askRematch(msg.game);
           break;
         case "next": {
           const picked = this.prefs.get();
-          if (picked.multiplayer && picked.games.includes("chess")) {
+          if (picked.games.includes("chess")) {
             this.bridge.next();
             this.openBoard("chess");
           } else {
@@ -115,14 +126,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case "claimBalance": {
           const prefs = this.prefs.get();
           if (!isEvmAddress(prefs.wallet) || !prefs.chainId) {
-            vscode.window.showWarningMessage("Connect: set a wallet on BNB before you withdraw.");
+            vscode.window.showWarningMessage(
+              "Connect: set a wallet on BNB before you withdraw.",
+            );
             break;
           }
           this.bridge.setPlayer(prefs.wallet as `0x${string}`, prefs.chainId);
           this.bridge.claimBalance({
             onPaid: (usd, chainName) => {
               const where = /bnb/i.test(chainName) ? ` on ${chainName}` : "";
-              vscode.window.showInformationMessage(`Connect: ${usd} USDT sent${where}.`);
+              vscode.window.showInformationMessage(
+                `Connect: ${usd} USDT sent${where}.`,
+              );
             },
             onError: (message) => {
               vscode.window.showErrorMessage(`Connect: ${message}`);
@@ -133,12 +148,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case "syncDeposit": {
           const prefs = this.prefs.get();
           if (!isEvmAddress(prefs.wallet)) {
-            vscode.window.showWarningMessage("Connect: set a wallet before checking the deposit.");
+            vscode.window.showWarningMessage(
+              "Connect: set a wallet before checking the deposit.",
+            );
             break;
           }
           this.bridge.setPlayer(prefs.wallet as `0x${string}`, prefs.chainId);
           if (!this.bridge.syncDeposit()) {
-            vscode.window.showWarningMessage("Connect: connect to the relay, then check the deposit.");
+            vscode.window.showWarningMessage(
+              "Connect: connect to the relay, then check the deposit.",
+            );
           }
           break;
         }
@@ -159,7 +178,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 (GAME_IDS as readonly string[]).includes(game),
               )
             : this.prefs.get().games;
-          const chain = EVM_CHAINS.find((item) => item.id === Number(msg.chainId)) ?? EVM_CHAINS[0];
+          const chain =
+            EVM_CHAINS.find((item) => item.id === Number(msg.chainId)) ??
+            EVM_CHAINS[0];
           const current = this.prefs.get();
           await this.prefs.update({
             games: games.length ? games : current.games,
@@ -187,19 +208,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
         case "copyDeposit": {
-          const address = this.bridge.bank?.address || escrowAddressFor(this.prefs.get().chainId);
+          const address =
+            this.bridge.bank?.address ||
+            escrowAddressFor(this.prefs.get().chainId);
           if (!address) {
-            vscode.window.showWarningMessage("Connect: the escrow address is not available yet.");
+            vscode.window.showWarningMessage(
+              "Connect: the escrow address is not available yet.",
+            );
             break;
           }
           await vscode.env.clipboard.writeText(address);
-          vscode.window.showInformationMessage("Connect: deposit address copied.");
+          vscode.window.showInformationMessage(
+            "Connect: deposit address copied.",
+          );
           break;
         }
         case "claim": {
           const prefs = this.prefs.get();
           if (!isEvmAddress(prefs.wallet) || !prefs.chainId) {
-            vscode.window.showWarningMessage("Connect: set a wallet on BNB before you claim.");
+            vscode.window.showWarningMessage(
+              "Connect: set a wallet on BNB before you claim.",
+            );
             break;
           }
           const claimed = this.credits.claim();
@@ -209,9 +238,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.bridge.setPlayer(prefs.wallet as `0x${string}`, prefs.chainId);
           this.bridge.claimReward(amount, {
             onReward: (txHash, chainName) => {
-              this.credits.markSent(claimed.cents, prefs.wallet, chainName, txHash);
+              this.credits.markSent(
+                claimed.cents,
+                prefs.wallet,
+                chainName,
+                txHash,
+              );
               this.postCredits();
-              vscode.window.showInformationMessage(`Connect: $${(claimed.cents / 100).toFixed(2)} USDT sent.`);
+              vscode.window.showInformationMessage(
+                `Connect: $${(claimed.cents / 100).toFixed(2)} USDT sent.`,
+              );
             },
             onError: (message) => {
               this.credits.restore(claimed.cents, message);
@@ -228,7 +264,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
               )
             : [];
           const wallet = String(msg.wallet ?? "").trim();
-          const chain = EVM_CHAINS.find((item) => item.id === Number(msg.chainId));
+          const chain = EVM_CHAINS.find(
+            (item) => item.id === Number(msg.chainId),
+          );
           if (!isEvmAddress(wallet) || !chain) {
             this.view?.webview.postMessage({
               type: "prefsError",
@@ -261,7 +299,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async acceptDeposit(proof: { address: `0x${string}`; txHash: `0x${string}`; chainId: number }): Promise<void> {
+  private async acceptDeposit(proof: {
+    address: `0x${string}`;
+    txHash: `0x${string}`;
+    chainId: number;
+  }): Promise<void> {
     const current = this.prefs.get();
     await this.prefs.update({
       games: current.games,
@@ -273,7 +315,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this.postPrefs();
     await this.publishEscrow(proof.txHash);
     const short = `${proof.address.slice(0, 6)}…${proof.address.slice(-4)}`;
-    vscode.window.showInformationMessage(`Connect: ${short} verified. Balance updated.`);
+    vscode.window.showInformationMessage(
+      `Connect: ${short} verified. Balance updated.`,
+    );
   }
 
   private async publishEscrow(txHash?: string): Promise<void> {
@@ -303,13 +347,20 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const hash = found?.txHash || txHash || "";
     const when = found?.at ? new Date(found.at) : null;
     const pad = (n: number) => String(n).padStart(2, "0");
-    const clock = when ? `${pad(when.getHours())}:${pad(when.getMinutes())}:${pad(when.getSeconds())}` : "";
-    const shortTx = hash.length > 12 ? `${hash.slice(0, 6)}…${hash.slice(-4)}` : "";
+    const clock = when
+      ? `${pad(when.getHours())}:${pad(when.getMinutes())}:${pad(when.getSeconds())}`
+      : "";
+    const shortTx =
+      hash.length > 12 ? `${hash.slice(0, 6)}…${hash.slice(-4)}` : "";
     const deposit = hash
       ? {
           title: "Deposit",
-          meta: [shortTx, page?.chainName || "BNB", clock].filter(Boolean).join(" · "),
-          amount: found ? `+${formatUsdt(found.amount)}` : `+${page?.label ?? ""}`,
+          meta: [shortTx, page?.chainName || "BNB", clock]
+            .filter(Boolean)
+            .join(" · "),
+          amount: found
+            ? `+${formatUsdt(found.amount)}`
+            : `+${page?.label ?? ""}`,
           href: `${page?.explorer || "https://testnet.bscscan.com"}/tx/${hash}`,
         }
       : null;
@@ -320,18 +371,30 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       balanceUsd: formatUsdt(units),
       txHash: hash,
       deposit,
-      settlements: settled.map((row) => ({
-        title: row.result === "draw" ? "Draw" : row.result === "won" ? "Won" : "Lost",
-        meta: "BNB testnet",
-        amount: `${row.result === "lost" ? "-" : "+"}${formatUsdt(row.stake)}`,
-        href: `${page?.explorer || "https://testnet.bscscan.com"}/tx/${row.txHash}`,
-        at: row.at,
-      })),
+      settlements: settled.map((row) => {
+        const prize = prizeFromPrompt(row.result, row.at || Date.now());
+        return {
+          title:
+            row.result === "draw"
+              ? "Draw"
+              : row.result === "won"
+                ? "Won"
+                : "Lost",
+          meta: "prompt cost · BNB testnet",
+          // Show the linked prompt cost, not the fixed escrow stake.
+          amount: prize || "",
+          href: `${page?.explorer || "https://testnet.bscscan.com"}/tx/${row.txHash}`,
+          at: row.at,
+        };
+      }),
     });
   }
 
   postPrompts() {
-    this.view?.webview.postMessage({ type: "prompts", rows: this.prompts.lines() });
+    this.view?.webview.postMessage({
+      type: "prompts",
+      rows: this.prompts.lines(),
+    });
   }
 
   refresh() {
@@ -347,11 +410,17 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private postCredits() {
-    this.view?.webview.postMessage({ type: "credits", credits: this.credits.view() });
+    this.view?.webview.postMessage({
+      type: "credits",
+      credits: this.credits.view(),
+    });
   }
 
   private postBank(view: BankView | null) {
-    this.view?.webview.postMessage({ type: "bank", bank: view ? scrubBank(view) : view });
+    this.view?.webview.postMessage({
+      type: "bank",
+      bank: view ? scrubBank(view) : view,
+    });
   }
 
   private html(webview: vscode.Webview): string {
@@ -618,6 +687,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         ? 'https://testnet.bscscan.com/tx/' + hash
         : '';
     }
+    function promptCostText() {
+      const rows = promptRows.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+      for (const row of rows) {
+        const cost = String(row.amount || '');
+        if (!cost || cost === '…') continue;
+        return cost.replace(/^[+-]/, '');
+      }
+      return '';
+    }
+    function promptPrize(sign) {
+      const cost = promptCostText();
+      return cost ? sign + cost : '';
+    }
+    function settleTitle(line, fallback) {
+      const text = String(line || fallback || '');
+      if (/^draw\b/i.test(text)) return 'Draw';
+      if (/^won\b/i.test(text) || /\byou won\b/i.test(text)) return 'Won';
+      if (/^lost\b/i.test(text) || /\byou lost\b/i.test(text)) return 'Lost';
+      return fallback || 'Settlement';
+    }
     function resultRow(match, me) {
       const href = payoutHref(match && match.payoutTx);
       if (!href || !match || match.status !== 'finished' || !match.result) return null;
@@ -625,15 +714,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       const won = match.result.kind === 'win' && me && match.result.winner === me.id;
       const title = draw ? 'Draw' : won ? 'Won' : 'Lost';
       const sign = draw ? '' : won ? '+' : '-';
-      let amount = '';
-      try {
-        const units = BigInt(match.stakeWei || '0');
-        const text = (Number(units) / 1e18).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
-        if (text && text !== '0') amount = sign + '$' + text;
-      } catch (err) {
-        amount = '';
-      }
-      return { title: title, meta: 'BNB testnet', amount: amount, href: href };
+      // Prize tracks the prompt cost, not the fixed $0.001 escrow stake.
+      const amount = promptPrize(sign);
+      return { title: title, meta: 'prompt cost · BNB testnet', amount: amount, href: href, at: Date.now() };
     }
     function isSettlementHref(href) {
       return href.indexOf('https://testnet.bscscan.com/') === 0 || href.indexOf('https://bscscan.com/') === 0;
@@ -645,7 +728,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         const href = row && typeof row.href === 'string' ? row.href : '';
         if (!href || seen[href] || !isSettlementHref(href)) return;
         seen[href] = true;
-        list.push({ title: row.line || 'Settlement', meta: 'Match', amount: '', href: href });
+        const title = settleTitle(row.line, 'Settlement');
+        const sign = title === 'Won' ? '+' : title === 'Lost' ? '-' : '';
+        list.push({
+          title: title,
+          meta: 'prompt cost · BNB testnet',
+          amount: promptPrize(sign),
+          href: href,
+          at: row.at || 0,
+        });
       };
       const ledger = bank && bank.ledger;
       if (ledger) for (const row of ledger) add(row);
@@ -710,7 +801,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             if (index) meta.append(document.createTextNode(' · '));
             const a = document.createElement('a');
             a.href = link.href;
-            a.textContent = (link.title || 'Bet') + (link.amount ? ' ' + link.amount : '');
+            a.textContent = link.amount
+              ? (link.title || 'Bet') + ' ' + link.amount
+              : (link.title || 'Bet');
             a.addEventListener('click', (event) => open(event, link.href));
             meta.append(a);
           });
@@ -722,10 +815,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         el.append(main, amount);
         box.appendChild(el);
       };
+      const withPromptPrize = (prompt, result) => {
+        const raw = prompt && prompt.amount && prompt.amount !== '…' ? String(prompt.amount) : promptCostText();
+        const cost = raw ? raw.replace(/^[+-]/, '') : '';
+        const title = settleTitle(result.title, result.title || 'Settlement');
+        if (!cost) {
+          return Object.assign({}, result, {
+            title: title,
+            amount: '',
+            meta: 'prompt cost · BNB testnet',
+          });
+        }
+        let amount = cost;
+        if (title === 'Won') amount = '+' + cost;
+        else if (title === 'Lost') amount = '-' + cost;
+        return Object.assign({}, result, {
+          title: title,
+          amount: amount,
+          meta: 'prompt cost · BNB testnet',
+        });
+      };
       if (latestDeposit) draw(latestDeposit);
       for (const group of groups) {
-        if (group.prompt) draw(group.prompt, group.results);
-        else if (group.results.length) draw(group.results[0]);
+        if (group.prompt) {
+          // One win/loss line per prompt — the fixed stake used to repeat here.
+          const ranked = group.results
+            .slice()
+            .sort((a, b) => (b.at || 0) - (a.at || 0));
+          const latest = ranked[0] ? [withPromptPrize(group.prompt, ranked[0])] : [];
+          draw(group.prompt, latest);
+        } else if (group.results.length) {
+          draw(withPromptPrize(null, group.results[0]));
+        }
       }
     }
 

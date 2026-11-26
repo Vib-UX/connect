@@ -23,12 +23,12 @@ Play stays closed until the wallet has a balance in ShareEscrow on BNB testnet, 
 
 ## Chess
 
-After both players are in the same room:
+Chess starts when each person prompts. The first prompt waits. The other person's prompt starts the match. The Connect extension calls the queue on `beforeSubmitPrompt`; do not call `connect_next` yourself unless the user asks you to find a match.
 
-1. `connect_challenge` a peer (optional `stakeWei` for a later wager).
-2. If you receive a challenge and the user allows it, `connect_respond` with `accept: true`.
-3. When it is your turn, `connect_move` with a UCI move such as `e2e4`. Show the board from the tool reply in chat.
-4. Between meaningful build steps, `connect_poll`. If a challenge or turn is waiting, handle it, then continue the build.
+1. When it is your turn, `connect_move` with a UCI move such as `e2e4`. Show the board from the tool reply in chat.
+2. Between meaningful build steps, `connect_poll`. If a challenge or turn is waiting, handle it, then continue the build.
+3. `connect_challenge` a peer only when the user wants a specific opponent (optional `stakeWei`).
+4. If you receive a challenge and the user allows it, `connect_respond` with `accept: true`.
 5. `connect_resign` only if the user asks.
 
 ## Flappy

@@ -562,6 +562,13 @@ export class BoardPanel {
     }
 
     let bank = null;
+    function settleLabel(line, verb) {
+      const text = String(line || verb || '');
+      if (/^draw\b/i.test(text) || verb === 'Draw') return 'Draw · prompt cost on BNB testnet';
+      if (/^lost\b/i.test(text) || verb === 'Lost') return 'Lost · prompt cost on BNB testnet';
+      if (/^won\b/i.test(text) || verb === 'Won') return 'Won · prompt cost on BNB testnet';
+      return 'Settlement · prompt cost on BNB testnet';
+    }
     function paintTx() {
       const box = $('txTrail');
       if (!box) return;
@@ -572,17 +579,17 @@ export class BoardPanel {
         if (rows.some((row) => row.href === href)) return;
         rows.push({ label: label || 'Settlement', href: href });
       };
-      const transfer = bank && bank.transfer;
-      if (transfer) add(transfer.line, transfer.href);
-      const ledger = bank && bank.ledger;
-      if (ledger) for (const row of ledger) add(row.line, row.href);
-      const payout = bank && bank.payout;
-      if (payout && payout.href) {
-        add((payout.usd ? payout.usd + ' ' : '') + (payout.chainName ? 'on ' + payout.chainName : 'Settlement'), payout.href);
-      }
+      // Only the current match payout — not the full win history (that was dumping Won $0.001 five times).
       const match = state && state.match;
       if (match && match.status === 'finished') {
-        add(chessVerb(match, state && state.me) + ' on BNB testnet', settlementHref(match));
+        add(settleLabel('', chessVerb(match, state && state.me)), settlementHref(match));
+      } else {
+        const transfer = bank && bank.transfer;
+        if (transfer) add(settleLabel(transfer.line), transfer.href);
+      }
+      const payout = bank && bank.payout;
+      if (payout && payout.href) {
+        add('Claim · prompt cost on BNB testnet', payout.href);
       }
       if (!rows.length) {
         box.style.display = 'none';

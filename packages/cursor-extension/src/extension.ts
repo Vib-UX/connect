@@ -154,7 +154,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (!picked.onboarded) return;
       const game = gameName as GameId;
       const panel = BoardPanel.show(bridge, prefs, credits);
-      if (game === "chess" && picked.multiplayer) {
+      if (game === "chess") {
         const match = bridge.state.match;
         if (!match || match.status === "finished") bridge.next();
       }
@@ -181,7 +181,8 @@ export async function activate(context: vscode.ExtensionContext) {
     const picked = prefs.get();
     if (!picked.onboarded) return;
     lastPromptPlay = pending.id;
-    if (picked.multiplayer && picked.games.includes("chess")) {
+    // Same as Claude: each prompt enters the chess queue when chess is selected.
+    if (picked.games.includes("chess")) {
       const match = bridge.state.match;
       if (!match || match.status === "finished") {
         bridge.next();
