@@ -233,12 +233,13 @@ function renderPage(
     <h1>Deposit</h1>
     <p>MetaMask signs each step. The account that signs is the one Connect credits.</p>
     <ol class="flow">
-      <li id="step-usdt-approve"><span class="n">1</span><div><strong>Approve ${page.label} USDT</strong><small>Allowance for ShareEscrow</small></div></li>
-      <li id="step-usdt-deposit"><span class="n">2</span><div><strong>Deposit ${page.label} USDT</strong><small>${page.shareEscrow}</small></div></li>
+      <li id="step-usdt-mint"><span class="n">1</span><div><strong>Mint ${page.label} USDT</strong><small>Testnet USDT for this account. Skipped when it already holds enough.</small></div></li>
+      <li id="step-usdt-approve"><span class="n">2</span><div><strong>Approve ${page.label} USDT</strong><small>Allowance for ShareEscrow</small></div></li>
+      <li id="step-usdt-deposit"><span class="n">3</span><div><strong>Deposit ${page.label} USDT</strong><small>${page.shareEscrow}</small></div></li>
     </ol>
     <p class="kicker">Optional shares</p>
-    <label class="opt"><input type="checkbox" data-share="NVDAB" /><span><strong>NVDAB</strong><small>Approve and deposit 1 share into ${page.shareEscrow}</small></span></label>
-    <label class="opt"><input type="checkbox" data-share="XAUt" /><span><strong>XAUt</strong><small>Approve and deposit 1 share into ${page.shareEscrow}</small></span></label>
+    <label class="opt"><input type="checkbox" data-share="NVDAB" /><span><strong>NVDAB</strong><small>Mint 1 if this account is short, then approve and deposit into ${page.shareEscrow}</small></span></label>
+    <label class="opt"><input type="checkbox" data-share="XAUt" /><span><strong>XAUt</strong><small>Mint 1 if this account is short, then approve and deposit into ${page.shareEscrow}</small></span></label>
     <p id="status">${page.chainName}</p>
     <button id="go">Sign deposit in MetaMask</button>
   </main>
@@ -288,8 +289,8 @@ function renderPage(
           const usdtBalance = await readUint(ethereum, cfg.usdt, '0x70a08231' + word(from));
           if (usdtBalance < usdtAmount) {
             status('Mint ' + cfg.label + ' USDT for this account…');
-            mark('step-usdt-approve');
-            await sendTx(ethereum, from, cfg.usdt, '0x40c10f19' + word(from) + word(usdtAmount));
+            mark('step-usdt-mint');
+            await sendTx(ethereum, from, cfg.usdt, '0x40c10f19' + word(from) + word(usdtAmount - usdtBalance));
           }
           status('Approve USDT for ShareEscrow…');
           mark('step-usdt-approve');

@@ -359,7 +359,7 @@ function depositBlock($, ui) {
     }),
     ...(payoutChain === 97
       ? [
-          Text({ key: "deposit-usdt", children: [`1. Approve and deposit $10 USDT into ${ESCROW}`] }),
+          Text({ key: "deposit-usdt", children: [`1. Mint $10 testnet USDT, then approve and deposit it into ${ESCROW}`] }),
           Text({ key: "deposit-shares", color: "subtle", children: [`NVDAB and XAUt are optional on the sign page.`] }),
         ]
       : [Text({ key: "deposit-main", children: ["The BNB Chain escrow is not deployed yet."] })]),

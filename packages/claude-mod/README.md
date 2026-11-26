@@ -5,9 +5,10 @@ One pane for two players. `/connect` opens it. Pick **Chess** or **Flappy**, the
 ## Install
 
 ```bash
-npm install -g @hlvuser/connect
-claude --plugin-dir "$(connect-claude-mod)"
+claude plugin install connect --marketplace Vib-UX/connect
 ```
+
+That adds the `hlv-connect` marketplace and installs the plugin from npm. The catalog is `.claude-plugin/marketplace.json`.
 
 From a checkout of this repo:
 
@@ -27,7 +28,7 @@ In Claude Code:
 
 `claude plugin validate ./packages/claude-mod` lists the hooks.
 
-The display name and relay URL are read when the MCP process starts. The relay is `wss://connectrelay-production.up.railway.app/ws`. Set `display_name` and `relay_url` in `/config` before that process starts. Deposits are USDT into ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. NVDAB and XAUt are optional on that page. `pieces` is `unicode` or `letters`. `columns` is the docked pane width, 30–100, default 60.
+The display name and relay URL are read when the MCP process starts. The relay is `wss://connectrelay-production.up.railway.app/ws`. Set `display_name` and `relay_url` in `/config` before that process starts. Deposits are USDT into ShareEscrow on BNB testnet, `0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`. The sign page mints mock USDT when the account is short. NVDAB and XAUt are optional on that page and mint the same way. `pieces` is `unicode` or `letters`. `columns` is the docked pane width, 30–100, default 60.
 
 ## What the pane does
 

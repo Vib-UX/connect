@@ -584,7 +584,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     </select>
     <div id="depositIntro">
       <ol class="flow">
-        <li><span>1</span> Approve and deposit $10 USDT into ShareEscrow</li>
+        <li><span>1</span> Mint $10 testnet USDT, then approve and deposit it into ShareEscrow</li>
       </ol>
       <p class="empty">ShareEscrow 0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7. NVDAB and XAUt are optional on the sign page.</p>
       <button class="next" id="metamaskDeposit" style="margin-top:8px">Deposit</button>

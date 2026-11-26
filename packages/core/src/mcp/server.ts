@@ -91,7 +91,7 @@ export async function createConnectMcpServer(opts: McpServerOptions) {
 
   server.tool(
     "connect_deposit",
-    "Open the MetaMask page in the browser to approve USDT and deposit into ShareEscrow on BNB testnet. NVDAB and XAUt are optional checkboxes on that page. When the deposit confirms, the signing wallet becomes the player wallet and the balance syncs.",
+    "Open the MetaMask page in the browser. On BNB testnet it mints mock USDT to the signing account when that account is short, then approves and deposits $10 into ShareEscrow. NVDAB and XAUt are optional checkboxes and mint the same way. When the deposit confirms, the signing wallet becomes the player wallet and the balance syncs.",
     {
       chainId: z.number().int().optional().describe("Deposit chain. Only 97 BNB testnet has the escrow today."),
     },

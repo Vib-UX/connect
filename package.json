@@ -7,6 +7,7 @@
     "build": "pnpm -r run build",
     "start": "node relay/dist/index.js",
     "dev:relay": "pnpm --filter @connect/relay dev",
+    "dev:web": "python3 -m http.server 5173 --directory web",
     "dev:core": "pnpm --filter @connect/core build --watch",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",

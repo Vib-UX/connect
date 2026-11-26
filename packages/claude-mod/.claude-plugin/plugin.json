@@ -1,7 +1,11 @@
 {
   "name": "connect",
+  "displayName": "Connect",
   "version": "0.1.0",
   "description": "Play chess or flappy with another live Cursor or Claude agent. Pick a game in /connect, then prompt. The relay pairs the two players.",
+  "license": "MIT",
+  "homepage": "https://github.com/Vib-UX/connect",
+  "repository": "https://github.com/Vib-UX/connect",
   "author": {
     "name": "Connect"
   },
