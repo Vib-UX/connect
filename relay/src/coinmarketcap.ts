@@ -135,16 +135,36 @@ function changesOf(body: unknown): Map<number, number> {
   return changes;
 }
 
+/** Names per CoinMarketCap request. A wallet can hold more shares than one call should carry. */
+export const QUOTE_BATCH = 100;
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let index = 0; index < items.length; index += size) batches.push(items.slice(index, index + size));
+  return batches;
+}
+
 /** Latest dollar price and 24-hour change for each real-world asset symbol. */
-export async function quoteShares(symbols: string[], fetchImpl: FetchLike = fetch): Promise<CmcQuoteResult> {
+export async function quoteShares(
+  symbols: string[],
+  fetchImpl: FetchLike = fetch,
+  batchSize = QUOTE_BATCH,
+): Promise<CmcQuoteResult> {
   const list = [...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))];
   if (list.length === 0) throw new CmcError("No symbols to quote.");
+  if (batchSize < 1) throw new CmcError("Quote batch size is invalid.");
 
-  const quoted = await getJson(
-    `/v5/real-world-assets/quotes/latest?symbol=${encodeURIComponent(list.join(","))}&convert=USD`,
-    fetchImpl,
-  );
-  const assets = assetsOf(quoted.body);
+  const assets: AssetRow[] = [];
+  let credits = 0;
+  for (const batch of chunks(list, batchSize)) {
+    const quoted = await getJson(
+      `/v5/real-world-assets/quotes/latest?symbol=${encodeURIComponent(batch.join(","))}&convert=USD`,
+      fetchImpl,
+    );
+    assets.push(...assetsOf(quoted.body));
+    credits += quoted.credits;
+  }
+
   const ids = [
     ...new Set(
       assets
@@ -153,14 +173,13 @@ export async function quoteShares(symbols: string[], fetchImpl: FetchLike = fetc
     ),
   ];
 
-  let changes = new Map<number, number>();
-  let credits = quoted.credits;
-  if (ids.length > 0) {
+  const changes = new Map<number, number>();
+  for (const batch of chunks(ids, batchSize)) {
     const tokens = await getJson(
-      `/v3/cryptocurrency/quotes/latest?id=${ids.join(",")}&convert=USD`,
+      `/v3/cryptocurrency/quotes/latest?id=${batch.join(",")}&convert=USD`,
       fetchImpl,
     );
-    changes = changesOf(tokens.body);
+    for (const [id, change] of changesOf(tokens.body)) changes.set(id, change);
     credits += tokens.credits;
   }
 

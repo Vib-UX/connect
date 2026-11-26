@@ -1,7 +1,7 @@
 import "./load-env.js";
 import cors from "cors";
+import { compareWithFearAndGreed } from "./coinmarketcap.js";
 import { cournotGoldDownProbability } from "./cournot.js";
-import { readShareStake } from "./shareStake.js";
 import express from "express";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
@@ -85,10 +85,9 @@ function publishShareStake(): void {
   void (async () => {
     try {
       const cournotProbability = await cournotGoldDownProbability();
-      const reading = await readShareStake(["NVDA", "TSLA", "GOLD"], cournotProbability);
-      const comparison = reading.comparison;
+      const comparison = await compareWithFearAndGreed(cournotProbability);
       console.log(
-        `share stake fallback=${reading.fallbackSymbol ?? "none"} cournot=${comparison.cournotProbability} fear=${comparison.fearGreed} (${comparison.classification}) agrees=${comparison.agrees}`,
+        `share stake cournot=${comparison.cournotProbability} fear=${comparison.fearGreed} (${comparison.classification}) agrees=${comparison.agrees}`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "share stake failed";

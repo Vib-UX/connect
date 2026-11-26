@@ -50,7 +50,7 @@ On BSC testnet a deposit is 0.1 USDT and a match locks 0.001 USDT. Set `CONNECT_
 
 ### Which share
 
-The relay names each player's asset before `lock`. A player who holds a share locks that share. A player who does not holds native BNB or USDT instead, and the other player can still lock a share. CoinMarketCap supplies each share's 24-hour change, and Cournot names the share most likely to be the worst of that book over the next 24 hours. If every Cournot call abstains, the lowest 24-hour change is the share. On startup the relay reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed and logs whether the two lean the same way. The comparison does not change `lock`. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. The relay quotes every share in that wallet, in batches, and locks the share with the lowest 24-hour change that can cover the stake. The same change breaks by token address. A player who holds no share locks native BNB or USDT instead, and the other player can still lock a share. On startup the relay reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed and logs whether the two lean the same way. That comparison does not choose the share and does not change `lock`. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -60,24 +60,20 @@ sequenceDiagram
   participant Escrow as ShareEscrow
   participant Atlas
 
-  Relay->>Escrow: free balances per player
-  Relay->>CMC: quotes latest for those tokens
-  CMC-->>Relay: percent_change_24h
+  Relay->>Escrow: free balance of every share
+  Note over Escrow: a wallet can hold many shares
+  loop each batch of the wallet
+    Relay->>CMC: quotes latest
+    CMC-->>Relay: percent_change_24h
+  end
+  Note over Relay: lowest 24h change that covers the stake
+  Note over Relay: a tie breaks by token address
   Relay->>CMC: fear and greed latest
   CMC-->>Relay: value and classification
   Relay->>Cournot: gold down over the next 24h
   Cournot-->>Relay: probability
   Note over Relay: both lean down, or neither does
   Note over Relay: agreement is logged and does not change lock
-  loop each holding
-    Relay->>Cournot: worst of this book in 24h
-    Cournot-->>Relay: probability or abstain
-  end
-  alt a probability came back
-    Note over Relay: highest probability is the candidate
-  else every call abstained
-    Note over Relay: lowest 24h change is the candidate
-  end
   Relay->>Escrow: lock with that token per player
   Escrow->>Atlas: size each pile
 ```
