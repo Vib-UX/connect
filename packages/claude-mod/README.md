@@ -5,10 +5,11 @@ One pane for two players. `/connect` opens it. Pick **Chess** or **Flappy**, the
 ## Install
 
 ```bash
-claude plugin install connect --marketplace Vib-UX/connect
+npm install -g @hlvuser/connect
+claude --plugin-dir "$(connect-claude-mod)"
 ```
 
-That adds the `hlv-connect` marketplace and installs the plugin from npm. The catalog is `.claude-plugin/marketplace.json`.
+`connect-claude-mod` prints the folder of that global package. Claude loads the plugin from it.
 
 From a checkout of this repo:
 

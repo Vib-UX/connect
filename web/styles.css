@@ -224,6 +224,13 @@ body {
 
 .install h3:first-of-type { margin-top: 0.15rem; }
 
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .logo {
   width: 1.35rem;
   height: 1.35rem;
@@ -233,6 +240,19 @@ body {
 }
 
 .logo.claude { color: #d97757; }
+
+.ide {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.ide .logo {
+  width: 0.95rem;
+  height: 0.95rem;
+}
 
 .install p, .closing {
   margin: 0;
