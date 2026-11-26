@@ -211,7 +211,34 @@ Source matches the deployed bytecode:
 - [NVDAB pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x876904e7b854f17A5582524aa5028124240f0e8E/)
 - [XAUt pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x73888097E35C7105aE80022ae2A8beaAc1435E73/)
 
-[A deposited 1 NVDAB](https://testnet.bscscan.com/tx/0x2242b8e5f1f57c2104f3d4faeeca0a6ef03f86eef8294321f54310bdc27c5d4b) and [B deposited 1 XAUt](https://testnet.bscscan.com/tx/0x22d1636a901e6a68b54fc75e1b584a886441616265c91fc332d15e9fa63a54ef). [`lock`](https://testnet.bscscan.com/tx/0x2febc023fc2a8b59f0c691a00152769df1f6944c55b03088952ebfcb78ba9b28) froze 0.006646411015529426 NVDAB at $150.45714110419697716 and 0.000281055500208008 XAUt at $3558.0161187377699159. [`settle`](https://testnet.bscscan.com/tx/0x9ae34636161cc7b9029abc2f2f0bd6094661f0af0095cda7a4a035c2cd4537e9) paid both piles to A. A withdrew those stakes. The rest of each deposit stays as a free balance: 0.993353588984470574 NVDAB for A and 0.999718944499791992 XAUt for B.
+Each player can hold a different stock. Atlas sizes both piles to the same dollar stake. The game result pays both piles; `settle` does not reread Atlas.
+
+[A deposited 1 NVDAB](https://testnet.bscscan.com/tx/0x2242b8e5f1f57c2104f3d4faeeca0a6ef03f86eef8294321f54310bdc27c5d4b) and [B deposited 1 XAUt](https://testnet.bscscan.com/tx/0x22d1636a901e6a68b54fc75e1b584a886441616265c91fc332d15e9fa63a54ef). A later cross-stock match reused those free balances: A locked NVDAB only, B locked XAUt only, both at **$1**.
+
+| | |
+|---|---|
+| betId | `0x242dacb2fd43320c626005ebe7f9f4c8aef45b918dc83f3376706b761464def6` |
+| Player A | [`0xC144dEB94B6E27d903d4D0931A09A40A04f4A113`](https://testnet.bscscan.com/address/0xC144dEB94B6E27d903d4D0931A09A40A04f4A113) |
+| Player B | [`0x5278754c5d899B646a15f9BC481989272bA50B68`](https://testnet.bscscan.com/address/0x5278754c5d899B646a15f9BC481989272bA50B68) |
+| [`lock`](https://testnet.bscscan.com/tx/0x614e3670741c5433be109ac91b4280105d0655dea0da5baf28ed9b1592da5ab7) | block 144992414 · `Locked` · 0.006622971130203664 NVDAB at $150.989635971619999510 · 0.000280638017998441 XAUt at $3563.309088099219497900 |
+| [`settle`](https://testnet.bscscan.com/tx/0x3916c65ad6d812be0b4a4c942db20671c07349366008f98678647189ab823ad8) | block 144992825 · `Settled(AWins)` · A credited both frozen piles |
+
+```text
+Locked(
+  betId  0x242dacb2fd43320c626005ebe7f9f4c8aef45b918dc83f3376706b761464def6,
+  A      0xC144…A113,
+  B      0x5278…0B68,
+  tokenA NVDAB,
+  tokenB XAUt,
+  stakeA 6622971130203664,
+  stakeB 280638017998441,
+  priceA 150989635971619999510,
+  priceB 3563309088099219497900
+)
+
+Settled(betId, AWins, stakeA, stakeB)
+A free balance += stakeA NVDAB + stakeB XAUt
+```
 
 ## Deploy again
 

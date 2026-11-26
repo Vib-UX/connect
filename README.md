@@ -75,16 +75,35 @@ sequenceDiagram
   Note over Escrow: settle does not read Atlas
 ```
 
-Nvidia against Tesla is one way to use it. In the clip each side stakes $100. Player A locks Nvidia: the feed is $200, so the escrow freezes 0.5 NVDAB. Player B locks Tesla: the feed is $400, so it freezes 0.25 TSLAB. Those piles are the same $100, and Chess or Flappy settles them.
+Each player can lock a different stock. Atlas sizes both piles to the same dollar amount. Chess or Flappy names the winner, and `settle` pays both piles from that result without reading Atlas again.
+
+Nvidia against Tesla is the clip example. Each side stakes $100. Player A locks Nvidia at $200 → 0.5 NVDAB. Player B locks Tesla at $400 → 0.25 TSLAB. Those piles are the same $100.
 
 ![Each player locks a preferred stock, the escrow matches the dollar value, and the match settles it](contracts/docs/share-escrow-flow.gif)
 
-On BSC testnet the live proof uses the NVDAB/USD, XAU/USD, and BNB/USD SingleFeeds. Those addresses are price feeds, so the test mints stand-in NVDAB and XAUt piles and registers them against the feeds. The deployed escrow is [`0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`](https://testnet.bscscan.com/address/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7), and the [source matches the bytecode](https://repo.sourcify.dev/contracts/full_match/97/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7/).
+### Live NVDAB vs XAUt on BSC testnet
 
-The local fork reads those same feeds and does not broadcast:
+The deployed escrow is [`0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`](https://testnet.bscscan.com/address/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7) ([Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7/)). Player A held NVDAB only. Player B held XAUt only. Both sides locked **$1**. Atlas priced NVDAB at **$150.9896** and XAUt at **$3563.3091**, so the escrow froze **0.00662297 NVDAB** and **0.00028064 XAUt**. A won the match, so `settle` credited both piles to A.
+
+| | |
+|---|---|
+| betId | `0x242dacb2fd43320c626005ebe7f9f4c8aef45b918dc83f3376706b761464def6` |
+| Player A (NVDAB) | [`0xC144dEB94B6E27d903d4D0931A09A40A04f4A113`](https://testnet.bscscan.com/address/0xC144dEB94B6E27d903d4D0931A09A40A04f4A113) |
+| Player B (XAUt) | [`0x5278754c5d899B646a15f9BC481989272bA50B68`](https://testnet.bscscan.com/address/0x5278754c5d899B646a15f9BC481989272bA50B68) |
+| [`lock`](https://testnet.bscscan.com/tx/0x614e3670741c5433be109ac91b4280105d0655dea0da5baf28ed9b1592da5ab7) | block 144992414 · `Locked` · stakeA 6622971130203664 · stakeB 280638017998441 · priceA 150989635971619999510 · priceB 3563309088099219497900 |
+| [`settle`](https://testnet.bscscan.com/tx/0x3916c65ad6d812be0b4a4c942db20671c07349366008f98678647189ab823ad8) | block 144992825 · `Settled(AWins)` · A credited both frozen piles |
+
+```text
+lock  0x614e3670741c5433be109ac91b4280105d0655dea0da5baf28ed9b1592da5ab7
+      Locked(betId, A, B, NVDAB, XAUt, 0.00662297e18, 0.00028064e18, $150.9896e18, $3563.3091e18)
+
+settle 0x3916c65ad6d812be0b4a4c942db20671c07349366008f98678647189ab823ad8
+      Settled(betId, AWins, stakeA, stakeB)
+      A free balance += stakeA NVDAB + stakeB XAUt
+```
+
+Feeds, the earlier deploy deposits, and the fork command are in [contracts/README.md](contracts/README.md#shareescrow).
 
 ```bash
 pnpm test:contracts:share:fork
 ```
-
-Feeds, the `lock` and `settle` transactions, and the fork command are in [contracts/README.md](contracts/README.md#shareescrow).
