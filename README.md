@@ -8,7 +8,7 @@ Each player deposits the share token they prefer into `ShareEscrow`. Both sides 
 
 ### Which share
 
-The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. The relay quotes every share in that wallet, in batches, and locks the share with the lowest 24-hour change that can cover the stake. The same change breaks by token address. A player who holds no share locks native BNB or USDT instead, and the other player can still lock a share. On startup the relay reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed and logs whether the two lean the same way. That comparison does not choose the share and does not change `lock`. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. At lock time the relay quotes every share in that wallet, in batches, and reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed. When those two lean the same way, the lock takes the lowest 24-hour change that covers the stake. When they lean apart, the lock takes the highest. The same change breaks by token address. A player who holds no covering share locks native BNB or USDT instead, and the other player can still lock a share. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -24,14 +24,13 @@ sequenceDiagram
     Relay->>CMC: quotes latest
     CMC-->>Relay: percent_change_24h
   end
-  Note over Relay: lowest 24h change that covers the stake
-  Note over Relay: a tie breaks by token address
   Relay->>CMC: fear and greed latest
   CMC-->>Relay: value and classification
   Relay->>Cournot: gold down over the next 24h
   Cournot-->>Relay: probability
-  Note over Relay: both lean down, or neither does
-  Note over Relay: agreement is logged and does not change lock
+  Note over Relay: same way locks the lowest 24h change
+  Note over Relay: apart locks the highest 24h change
+  Note over Relay: a tie breaks by token address
   Relay->>Escrow: lock with that token per player
   Escrow->>Atlas: size each pile
 ```

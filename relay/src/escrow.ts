@@ -7,10 +7,22 @@ import {
   stringToHex,
   type Address,
   type Hex,
+  type PublicClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { bsc, bscTestnet } from "viem/chains";
-import { escrowChainId, escrowAddress, escrowUsdtAddress, rpcCandidates, shareEscrowAddress } from "./chains.js";
+import {
+  escrowChainId,
+  escrowAddress,
+  escrowUsdtAddress,
+  rpcCandidates,
+  shareBook,
+  shareEscrowAddress,
+  type ShareBookEntry,
+} from "./chains.js";
+import { compareWithFearAndGreed, quoteShares } from "./coinmarketcap.js";
+import { cournotGoldDownProbability } from "./cournot.js";
+import { lockTokensForPlayers, type ShareHolding } from "./shareStake.js";
 
 /** USDT on BNB Smart Chain mainnet (18 decimals). */
 export const USDT_BNB = "0x55d398326f99059fF775485246999027B3197955" as const;
@@ -139,6 +151,14 @@ const SHARE_ESCROW_ABI = [
     outputs: [],
   },
   ESCROW_ABI[2],
+  { type: "error", name: "NoOracle", inputs: [] },
+  { type: "error", name: "InsufficientBalance", inputs: [] },
+  { type: "error", name: "StalePrice", inputs: [] },
+  { type: "error", name: "NotSettler", inputs: [] },
+  { type: "error", name: "ZeroAmount", inputs: [] },
+  { type: "error", name: "BadPrice", inputs: [] },
+  { type: "error", name: "FeedNeverUpdated", inputs: [] },
+  { type: "error", name: "BetExists", inputs: [] },
 ] as const;
 
 /** ShareEscrow needs the USDT token, so it is used only when both are known. */
@@ -214,9 +234,16 @@ export function createEscrowClient(): EscrowClient {
 
     async lock(betId, playerA, playerB, stake) {
       const usdt = shareUsdt();
-      // USDT is pegged at $1 with 18 decimals, so the stake in units is the USD stake.
       if (usdt) {
-        return writeEscrow("lock", [betIdBytes(betId), playerA as Address, playerB as Address, usdt, usdt, stake]);
+        const tokens = await chooseLockTokens(playerA as Address, playerB as Address, usdt, stake);
+        return writeEscrow("lock", [
+          betIdBytes(betId),
+          playerA as Address,
+          playerB as Address,
+          tokens.tokenA as Address,
+          tokens.tokenB as Address,
+          stake,
+        ]);
       }
       return writeEscrow("lock", [
         betIdBytes(betId),
@@ -230,6 +257,88 @@ export function createEscrowClient(): EscrowClient {
       return writeEscrow("settle", [betIdBytes(betId), OUTCOME_CODE[outcome]]);
     },
   };
+}
+
+/** Dollars from an 18-decimal stake amount. */
+function usdFromStake(stake: bigint): number {
+  return Number(stake) / 1e18;
+}
+
+async function readShareHoldings(
+  client: PublicClient,
+  escrow: Address,
+  player: Address,
+  book: ShareBookEntry[],
+): Promise<ShareHolding[]> {
+  const holdings: ShareHolding[] = [];
+  for (const entry of book) {
+    const balance = await client.readContract({
+      address: escrow,
+      abi: SHARE_ESCROW_ABI,
+      functionName: "balanceOf",
+      args: [player, entry.token],
+    });
+    if (balance <= 0n) continue;
+    holdings.push({
+      symbol: entry.symbol,
+      token: entry.token,
+      balance,
+      decimals: 18,
+    });
+  }
+  return holdings;
+}
+
+/**
+ * Cournot and CoinMarketCap name each player's lock token.
+ * A player with no covering share locks USDT.
+ */
+async function chooseLockTokens(
+  playerA: Address,
+  playerB: Address,
+  usdt: Address,
+  stake: bigint,
+): Promise<{ tokenA: string; tokenB: string }> {
+  const escrow = escrowAddress();
+  if (!escrow) throw new Error("ConnectEscrow is not configured.");
+  const book = shareBook();
+  const chainId = escrowChainId();
+  const chain = escrowChain();
+  let holdingsA: ShareHolding[] = [];
+  let holdingsB: ShareHolding[] = [];
+  let last = "request failed";
+  for (const rpc of rpcCandidates(chainId)) {
+    try {
+      const client = createPublicClient({ chain, transport: http(rpc) });
+      holdingsA = await readShareHoldings(client, escrow, playerA, book);
+      holdingsB = await readShareHoldings(client, escrow, playerB, book);
+      last = "";
+      break;
+    } catch (err) {
+      last = err instanceof Error ? err.message.split("\n")[0]?.slice(0, 180) || "request failed" : "request failed";
+    }
+  }
+  if (last) throw new Error(`Could not read share balances (${last}).`);
+
+  if (holdingsA.length === 0 && holdingsB.length === 0) {
+    return { tokenA: usdt, tokenB: usdt };
+  }
+
+  const symbols = [...new Set([...holdingsA, ...holdingsB].map((holding) => holding.symbol))];
+  const [quoted, cournotProbability] = await Promise.all([quoteShares(symbols), cournotGoldDownProbability()]);
+  const comparison = await compareWithFearAndGreed(cournotProbability);
+  const chosen = lockTokensForPlayers(
+    quoted.quotes,
+    holdingsA,
+    holdingsB,
+    usdFromStake(stake),
+    comparison.agrees,
+    usdt,
+  );
+  console.log(
+    `share lock a=${chosen.symbolA ?? "USDT"} b=${chosen.symbolB ?? "USDT"} cournot=${comparison.cournotProbability} fear=${comparison.fearGreed} (${comparison.classification}) agrees=${comparison.agrees}`,
+  );
+  return { tokenA: chosen.tokenA, tokenB: chosen.tokenB };
 }
 
 async function writeEscrow(
@@ -261,7 +370,7 @@ async function writeEscrow(
       }
       return { txHash };
     } catch (err) {
-      last = err instanceof Error ? err.message.split("\n")[0]?.slice(0, 180) || "request failed" : "request failed";
+      last = err instanceof Error ? err.message.split("\n").slice(0, 2).join(" ").slice(0, 240) || "request failed" : "request failed";
     }
   }
   throw new Error(`ConnectEscrow ${fn} failed (${last}).`);

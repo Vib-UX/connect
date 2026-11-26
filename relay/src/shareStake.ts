@@ -13,12 +13,14 @@ export interface ShareHolding {
 export interface ShareStakeReading {
   quotes: ShareQuote[];
   comparison: MarketComparison;
-  /** Lowest 24-hour change that can cover the stake. */
+  /** Share chosen for this book after Cournot and Fear and Greed. */
   fallbackSymbol: string | null;
   /** Token address of `fallbackSymbol`, when the book named one. */
   fallbackToken: string | null;
   credits: number;
 }
+
+export type SharePrefer = "worst" | "best";
 
 function asHolding(entry: string | ShareHolding): ShareHolding {
   return typeof entry === "string" ? { symbol: entry } : entry;
@@ -46,13 +48,15 @@ function tieKey(holding: ShareHolding): string {
 }
 
 /**
- * The share to lock from a wallet of any size. Lowest 24-hour change that can
- * cover the stake. The same change breaks by token address.
+ * The share to lock from a wallet of any size.
+ * `worst` is the lowest 24-hour change that covers the stake.
+ * `best` is the highest. The same change breaks by token address.
  */
 export function chooseShare(
   quotes: ShareQuote[],
   holdings: Array<string | ShareHolding>,
   usdStake?: number,
+  prefer: SharePrefer = "worst",
 ): ShareHolding | null {
   const ranked = holdings
     .map(asHolding)
@@ -65,7 +69,9 @@ export function chooseShare(
       return coversStake(row.holding, row.quote, usdStake);
     });
   ranked.sort((left, right) => {
-    const change = (left.quote.percentChange24h ?? 0) - (right.quote.percentChange24h ?? 0);
+    const leftChange = left.quote.percentChange24h ?? 0;
+    const rightChange = right.quote.percentChange24h ?? 0;
+    const change = prefer === "worst" ? leftChange - rightChange : rightChange - leftChange;
     if (change !== 0) return change;
     const leftKey = tieKey(left.holding);
     const rightKey = tieKey(right.holding);
@@ -74,6 +80,34 @@ export function chooseShare(
     return 0;
   });
   return ranked[0]?.holding ?? null;
+}
+
+/** Prefer the worst share when Cournot and Fear and Greed lean the same way. */
+export function preferFromAgreement(agrees: boolean): SharePrefer {
+  return agrees ? "worst" : "best";
+}
+
+/**
+ * Token each player locks. The same Cournot and Fear and Greed comparison
+ * ranks both books. A player with no covering share locks USDT.
+ */
+export function lockTokensForPlayers(
+  quotes: ShareQuote[],
+  holdingsA: Array<string | ShareHolding>,
+  holdingsB: Array<string | ShareHolding>,
+  usdStake: number,
+  agrees: boolean,
+  usdt: string,
+): { tokenA: string; tokenB: string; symbolA: string | null; symbolB: string | null } {
+  const prefer = preferFromAgreement(agrees);
+  const chosenA = chooseShare(quotes, holdingsA, usdStake, prefer);
+  const chosenB = chooseShare(quotes, holdingsB, usdStake, prefer);
+  return {
+    tokenA: chosenA?.token ?? usdt,
+    tokenB: chosenB?.token ?? usdt,
+    symbolA: chosenA?.symbol ?? null,
+    symbolB: chosenB?.symbol ?? null,
+  };
 }
 
 /** Quote the whole book and compare Cournot's down probability with CMC Fear and Greed. */
@@ -93,7 +127,7 @@ export async function readShareStake(
     quote(book.map((holding) => holding.symbol)),
     compare(cournotProbability),
   ]);
-  const chosen = chooseShare(quoted.quotes, book, usdStake);
+  const chosen = chooseShare(quoted.quotes, book, usdStake, preferFromAgreement(comparison.agrees));
   return {
     quotes: quoted.quotes,
     comparison,

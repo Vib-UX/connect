@@ -47,6 +47,16 @@ export function rpcCandidates(chainId: number): string[] {
 export const SHARE_ESCROW_TESTNET = "0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7" as Address;
 /** MockUSDT on BSC testnet. */
 export const USDT_TESTNET = "0x27Ae80b8eE17ffbCFCf38469A018A942BC8f8Ba9" as Address;
+/** Minted Nvidia share on BSC testnet. Quoted as NVDA. */
+export const NVDAB_TESTNET = "0x876904e7b854f17A5582524aa5028124240f0e8E" as Address;
+/** Minted gold share on BSC testnet. Quoted as GOLD. */
+export const XAUT_TESTNET = "0x73888097E35C7105aE80022ae2A8beaAc1435E73" as Address;
+
+/** One share the relay can lock. `symbol` is the CoinMarketCap quote name. */
+export interface ShareBookEntry {
+  symbol: string;
+  token: Address;
+}
 
 /** ShareEscrow address. CONNECT_SHARE_ESCROW_ADDRESS overrides. No mainnet default yet. */
 export function shareEscrowAddress(): Address | null {
@@ -63,6 +73,17 @@ export function escrowUsdtAddress(): Address | null {
   const override = addressFrom("CONNECT_USDT_ADDRESS", "");
   if (override) return override;
   return escrowChainId() === 56 ? USDT_BNB : USDT_TESTNET;
+}
+
+/** Shares the relay may lock on the current escrow chain. Env overrides the token addresses. */
+export function shareBook(): ShareBookEntry[] {
+  if (escrowChainId() !== 97) return [];
+  const book: ShareBookEntry[] = [];
+  const nvda = addressFrom("CONNECT_NVDAB_ADDRESS", NVDAB_TESTNET);
+  const gold = addressFrom("CONNECT_XAUT_ADDRESS", XAUT_TESTNET);
+  if (nvda) book.push({ symbol: "NVDA", token: nvda });
+  if (gold) book.push({ symbol: "GOLD", token: gold });
+  return book;
 }
 
 /** Legacy treasury lookup. Connect deposits go to the escrow, so this stays empty. */
