@@ -5,8 +5,10 @@ out/
 # Deployment broadcasts stay local. Links live in README.md.
 broadcast/
 
-# Docs
-docs/
+# Generated docs stay local. The share-stake clip is checked in.
+docs/*
+!docs/share-escrow-flow.gif
+!docs/share-escrow-flow.mp4
 
 # Dotenv file
 .env
