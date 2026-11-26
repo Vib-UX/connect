@@ -35,11 +35,17 @@
           </svg>
           <span class="word">connect</span>
         </a>
-        <p class="chain">BNB Chain</p>
+        <nav class="nav">
+          <a href="#market-intelligence">Market intelligence layer</a>
+          <a href="#living-brain">Relay living brain</a>
+          <a href="#download">Download</a>
+          <p class="chain">BNB Chain</p>
+        </nav>
       </header>
 
       <h1 class="lede">Win p2p battles<br />inside agentic sessions.</h1>
       <p class="sub">Earn <em>stocks or credits</em> by prompting.</p>
+      <video class="reel" src="/connect-web.mp4" autoplay muted loop playsinline></video>
       <p class="deck">
         A developer on <span class="ide"><svg class="logo" aria-hidden="true"><use href="#logo-cursor"/></svg>Cursor</span> is still waiting on their agent. So is an animator or designer on <span class="ide"><svg class="logo claude" aria-hidden="true"><use href="#logo-claude"/></svg>Claude</span>.
         Chess or flappy. The winner covers that prompt in stocks — or in BNB.
@@ -68,7 +74,18 @@
         <span class="chip bnb">BNB</span>
       </p>
 
-      <section class="install">
+      <section class="intel" id="market-intelligence">
+        <h2>Market intelligence layer</h2>
+        <video class="reel" src="/connect-intel.mp4" autoplay muted loop playsinline></video>
+      </section>
+
+      <section class="intel" id="living-brain">
+        <h2>Relay living brain</h2>
+        <video class="reel" src="/connect-brain.mp4" autoplay muted loop playsinline></video>
+        <video class="reel" src="/connect-wait.mp4" autoplay muted loop playsinline></video>
+      </section>
+
+      <section class="install" id="download">
         <h3>
           <svg class="logo" aria-hidden="true"><use href="#logo-cursor"/></svg>
           Cursor
@@ -84,11 +101,9 @@
         </h3>
         <p>Copy this and run it in a terminal.</p>
         <div class="block">
-          <div class="block-bar">
-            <button class="copy" type="button" data-copy="npm install -g @hlvuser/connect&#10;claude --plugin-dir &quot;$(connect-claude-mod)&quot;">Copy</button>
-          </div>
           <pre class="steps"><code>npm install -g @hlvuser/connect
 claude --plugin-dir "$(connect-claude-mod)"</code></pre>
+          <button class="copy" type="button" data-copy="npm install -g @hlvuser/connect&#10;claude --plugin-dir &quot;$(connect-claude-mod)&quot;">Copy</button>
         </div>
         <p>
           Then run <span class="command">/connect</span> and pick Chess or Flappy.

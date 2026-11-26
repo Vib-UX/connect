@@ -2,6 +2,26 @@
 
 Connect p2p games inside agentic sessions.
 
+## Clips
+
+The landing page loops these.
+
+Sessions. A developer on Cursor and an animator on Claude play while both agents are still on the prompt.
+
+https://github.com/user-attachments/assets/001c658a-d03e-465c-a1a0-988e02169641
+
+Market intelligence. CoinMarketCap and `/cournot` name the last-24-hour underperformer in each wallet. Atlas sizes both piles to the same dollars.
+
+https://github.com/user-attachments/assets/fab6b099-649d-4c16-bdca-df579953c526
+
+Relay living brain. The clip shows a pair chosen on predicted prompt cost, minutes left, and whether the two have played recently.
+
+https://github.com/user-attachments/assets/90b7bd6a-cca7-43dc-b342-3b1c69911db6
+
+Wait. A long window pairs with a long window. A short window waits for a quick game. A long wait weighs more, so nobody sits forever.
+
+https://github.com/user-attachments/assets/fb24cc2a-0b43-4e52-b2c9-3c862d202960
+
 ## Share stakes
 
 Each player deposits the share token they prefer into `ShareEscrow`. Both sides name the same dollar size. Atlas decides how many shares that dollar size is. Chess or Flappy decides who receives both piles.
