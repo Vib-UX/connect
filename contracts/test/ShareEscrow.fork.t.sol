@@ -8,10 +8,11 @@ import {MintableShare} from "../src/MintableShare.sol";
 import {ShareEscrow} from "../src/ShareEscrow.sol";
 
 /**
- * Sizes a crossed NVDAB / XAUt bet from the live Atlas SingleFeeds and settles
- * it on a BSC testnet fork. The feeds are the addresses Atlas published.
- * Testnet has no share ERC-20 at those addresses, so the piles are minted here
- * and pointed at the feeds. Nothing is broadcast.
+ * Deploys ShareEscrow on a BSC testnet fork and settles bets from the live
+ * Atlas SingleFeeds. NVDAB and XAUt are the published stock feeds. Native BNB
+ * uses the published BNB/USD feed. Testnet has no share ERC-20 at those
+ * addresses, so the piles are minted here and pointed at the feeds. Nothing
+ * is broadcast.
  *
  *   forge test --match-path test/ShareEscrow.fork.t.sol -vv
  */
@@ -20,6 +21,8 @@ contract ShareEscrowForkTest is Test {
     address constant NVDAB_FEED = 0x3eF39d6361EfA1E8Ca066751f438077dA81082A6;
     /// @dev Atlas SingleFeed XAU/USD on BSC testnet, used in place of the Tesla feed.
     address constant XAU_FEED = 0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764;
+    /// @dev Atlas SingleFeed BNB/USD on BSC testnet. Native BNB is `address(0)`.
+    address constant BNB_FEED = 0x3957d289ee9C38272377786787ea34F9dd29788D;
 
     uint256 constant USD_STAKE = 1 ether;
     uint64 constant DEADLINE = 1 days;
@@ -46,6 +49,7 @@ contract ShareEscrowForkTest is Test {
         escrow = new ShareEscrow(settler, DEADLINE, MAX_AGE);
         escrow.setSingleFeed(address(nvda), NVDAB_FEED);
         escrow.setSingleFeed(address(xau), XAU_FEED);
+        escrow.setSingleFeed(address(0), BNB_FEED);
     }
 
     function testFork_liveFeedsSizeThePilesAndWinnerTakesBoth() public {
@@ -102,6 +106,63 @@ contract ShareEscrowForkTest is Test {
         assertEq(escrow.balanceOf(ada, address(xau)), 0);
     }
 
+    /// Ada locks Nvidia, Bob locks native BNB, Cara locks gold. Two $1 matches
+    /// against the live feeds. Bob has enough BNB for both.
+    function testFork_threeUsersMixSharesAndNativeBnb() public {
+        (uint256 nvdaShares, uint256 nvdaPrice,) = _quoteSingle(address(nvda), NVDAB_FEED, "SingleFeed NVDAB/USD");
+        (uint256 xauShares, uint256 xauPrice,) = _quoteSingle(address(xau), XAU_FEED, "SingleFeed XAU/USD");
+        (uint256 bnbStake, uint256 bnbPrice,) = _quoteNative(BNB_FEED, "SingleFeed BNB/USD");
+        address cara = makeAddr("cara");
+
+        nvda.mint(ada, nvdaShares);
+        xau.mint(cara, xauShares);
+        vm.deal(bob, bnbStake * 2);
+        vm.prank(ada);
+        nvda.approve(address(escrow), type(uint256).max);
+        vm.prank(cara);
+        xau.approve(address(escrow), type(uint256).max);
+        vm.prank(ada);
+        escrow.deposit(address(nvda), nvdaShares);
+        vm.prank(cara);
+        escrow.deposit(address(xau), xauShares);
+        vm.prank(bob);
+        escrow.depositNative{value: bnbStake * 2}();
+
+        bytes32 stockAgainstBnb = keccak256("fork_nvda_bnb");
+        vm.prank(settler);
+        escrow.lock(stockAgainstBnb, ada, bob, address(nvda), address(0), USD_STAKE);
+        (,,,, uint256 lockedNvda, uint256 lockedBnb, uint256 priceNvda, uint256 priceBnb,,,,) = _bet(stockAgainstBnb);
+        assertEq(lockedNvda, nvdaShares);
+        assertEq(lockedBnb, bnbStake);
+        assertEq(priceNvda, nvdaPrice);
+        assertEq(priceBnb, bnbPrice);
+
+        vm.prank(settler);
+        escrow.settle(stockAgainstBnb, ShareEscrow.Outcome.AWins);
+        assertEq(escrow.balanceOf(ada, address(nvda)), nvdaShares);
+        assertEq(escrow.balanceOf(ada, address(0)), bnbStake);
+        assertEq(escrow.balanceOf(bob, address(0)), bnbStake);
+
+        uint256 adaBefore = ada.balance;
+        vm.prank(ada);
+        escrow.withdraw(address(0), bnbStake);
+        assertEq(ada.balance, adaBefore + bnbStake);
+
+        bytes32 goldAgainstBnb = keccak256("fork_xau_bnb");
+        vm.prank(settler);
+        escrow.lock(goldAgainstBnb, cara, bob, address(xau), address(0), USD_STAKE);
+        vm.prank(settler);
+        escrow.settle(goldAgainstBnb, ShareEscrow.Outcome.BWins);
+        assertEq(escrow.balanceOf(bob, address(xau)), xauShares);
+        assertEq(escrow.balanceOf(bob, address(0)), bnbStake);
+        assertEq(escrow.balanceOf(cara, address(xau)), 0);
+        assertEq(xauPrice > 0, true);
+
+        vm.prank(bob);
+        escrow.withdraw(address(xau), xauShares);
+        assertEq(IERC20(address(xau)).balanceOf(bob), xauShares);
+    }
+
     /// @dev `USD_STAKE` is a dollar amount with 18 decimals. Both testnet
     /// feeds answer with 18 decimals. The share count still uses whatever
     /// `decimals()` the feed reports.
@@ -120,6 +181,23 @@ contract ShareEscrowForkTest is Test {
         shares = USD_STAKE * (10 ** tokenDecimals) / (price * (10 ** (18 - priceDecimals)));
         assertGt(shares, 0, "stake rounds to zero");
         updatedAt = uint64(updated);
+    }
+
+    function _quoteNative(address feed, string memory expectedDescription)
+        internal
+        view
+        returns (uint256 amount, uint256 price, uint64 updatedAt)
+    {
+        assertEq(ISingleFeed(feed).description(), expectedDescription);
+        (, int256 answer,, uint256 updated,) = ISingleFeed(feed).latestRoundData();
+        assertGt(answer, 0, "feed never updated");
+        uint8 priceDecimals = ISingleFeed(feed).decimals();
+        price = uint256(answer);
+        assertLe(priceDecimals, 18);
+        amount = USD_STAKE * (10 ** 18) / (price * (10 ** (18 - priceDecimals)));
+        assertGt(amount, 0, "stake rounds to zero");
+        updatedAt = uint64(updated);
+        assertLe(block.timestamp - updatedAt, MAX_AGE);
     }
 
     function _bet(bytes32 betId)

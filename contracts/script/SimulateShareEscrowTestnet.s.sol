@@ -11,6 +11,7 @@ import {ShareEscrow} from "../src/ShareEscrow.sol";
 contract SimulateShareEscrowTestnet is Script {
     address constant NVDAB_FEED = 0x3eF39d6361EfA1E8Ca066751f438077dA81082A6;
     address constant XAU_FEED = 0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764;
+    address constant BNB_FEED = 0x3957d289ee9C38272377786787ea34F9dd29788D;
     uint256 constant USD_STAKE = 1 ether;
     uint256 constant MINT = 1 ether;
 
@@ -28,6 +29,7 @@ contract SimulateShareEscrowTestnet is Script {
         MintableShare xau = new MintableShare("Tether Gold", "XAUt");
         escrow.setSingleFeed(address(nvda), NVDAB_FEED);
         escrow.setSingleFeed(address(xau), XAU_FEED);
+        escrow.setSingleFeed(address(0), BNB_FEED);
         nvda.mint(playerA, MINT);
         xau.mint(playerB, MINT);
         vm.stopBroadcast();
@@ -42,7 +44,10 @@ contract SimulateShareEscrowTestnet is Script {
         escrow.deposit(address(xau), MINT);
         vm.stopBroadcast();
 
-        bytes32 betId = keccak256("testnet_nvda_xau");
+        console2.log("A deposited nvda", escrow.balanceOf(playerA, address(nvda)));
+        console2.log("B deposited xau", escrow.balanceOf(playerB, address(xau)));
+
+        bytes32 betId = keccak256("testnet_shares_v2");
         vm.startBroadcast(settlerKey);
         escrow.lock(betId, playerA, playerB, address(nvda), address(xau), USD_STAKE);
         escrow.settle(betId, ShareEscrow.Outcome.AWins);

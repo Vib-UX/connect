@@ -1,5 +1,7 @@
 import "./load-env.js";
 import cors from "cors";
+import { cournotGoldDownProbability } from "./cournot.js";
+import { readShareStake } from "./shareStake.js";
 import express from "express";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
@@ -26,7 +28,12 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "connect", escrow: Boolean(process.env.CONNECT_ESCROW_ADDRESS) });
+  res.json({
+    ok: true,
+    service: "connect",
+    escrow: Boolean(process.env.CONNECT_ESCROW_ADDRESS),
+    cmc: Boolean(process.env.CMC_API_KEY?.trim()),
+  });
 });
 
 app.get("/presence", (_req, res) => {
@@ -73,7 +80,25 @@ if (matchDrawAddress()) {
 setInterval(() => store.sweepClocks(), 200);
 setInterval(() => store.tickSnakes(), SNAKE_TICK_MS);
 
+function publishShareStake(): void {
+  if (!process.env.CMC_API_KEY?.trim() || !process.env.COURNOT_API_KEY?.trim()) return;
+  void (async () => {
+    try {
+      const cournotProbability = await cournotGoldDownProbability();
+      const reading = await readShareStake(["NVDA", "TSLA", "GOLD"], cournotProbability);
+      const comparison = reading.comparison;
+      console.log(
+        `share stake fallback=${reading.fallbackSymbol ?? "none"} cournot=${comparison.cournotProbability} fear=${comparison.fearGreed} (${comparison.classification}) agrees=${comparison.agrees}`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "share stake failed";
+      console.error("share stake", message);
+    }
+  })();
+}
+
 server.listen(PORT, () => {
+  publishShareStake();
   console.log(`connect relay listening on http://127.0.0.1:${PORT}`);
   console.log(`websocket ws://127.0.0.1:${PORT}/ws`);
   console.log(`presence  http://127.0.0.1:${PORT}/presence`);

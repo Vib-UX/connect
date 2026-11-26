@@ -296,6 +296,139 @@ contract ShareEscrowTest is Test {
         escrow.lock(bet1, ada, bob, address(other), address(tsla), USD_STAKE);
     }
 
+    function test_stockAgainstNativeBnbPaysBothPiles() public {
+        MockSingleFeed bnbFeed = new MockSingleFeed();
+        bnbFeed.set(int256(600 ether), block.timestamp);
+        escrow.setSingleFeed(address(0), address(bnbFeed));
+        uint256 bnbStake = 1666666666666666;
+
+        vm.deal(ada, 1 ether);
+        vm.prank(ada);
+        escrow.depositNative{value: 1 ether}();
+        vm.prank(bob);
+        escrow.deposit(address(tsla), DEPOSIT);
+
+        vm.prank(settler);
+        escrow.lock(bet1, ada, bob, address(0), address(tsla), USD_STAKE);
+        vm.prank(settler);
+        escrow.settle(bet1, ShareEscrow.Outcome.AWins);
+
+        assertEq(escrow.balanceOf(ada, address(0)), 1 ether);
+        assertEq(escrow.balanceOf(ada, address(tsla)), STAKE_B);
+        assertEq(escrow.balanceOf(bob, address(0)), 0);
+        assertEq(escrow.balanceOf(bob, address(tsla)), DEPOSIT - STAKE_B);
+
+        (,,,, uint256 stakeA,,,,,,,) = escrow.bets(bet1);
+        assertEq(stakeA, bnbStake);
+
+        uint256 before = ada.balance;
+        vm.prank(ada);
+        escrow.withdraw(address(0), 1 ether);
+        assertEq(ada.balance, before + 1 ether);
+        assertEq(address(escrow).balance, 0);
+    }
+
+    function test_nativeWinnerReceivesTheBnbPile() public {
+        MockSingleFeed bnbFeed = new MockSingleFeed();
+        bnbFeed.set(int256(600 ether), block.timestamp);
+        escrow.setSingleFeed(address(0), address(bnbFeed));
+        uint256 bnbStake = 1666666666666666;
+
+        vm.deal(ada, 1 ether);
+        vm.prank(ada);
+        escrow.depositNative{value: 1 ether}();
+        vm.prank(bob);
+        escrow.deposit(address(tsla), DEPOSIT);
+
+        vm.prank(settler);
+        escrow.lock(bet1, ada, bob, address(0), address(tsla), USD_STAKE);
+        vm.prank(settler);
+        escrow.settle(bet1, ShareEscrow.Outcome.BWins);
+
+        assertEq(escrow.balanceOf(bob, address(0)), bnbStake);
+        assertEq(escrow.balanceOf(bob, address(tsla)), DEPOSIT);
+        assertEq(escrow.balanceOf(ada, address(0)), 1 ether - bnbStake);
+
+        uint256 before = bob.balance;
+        vm.prank(bob);
+        escrow.withdraw(address(0), bnbStake);
+        assertEq(bob.balance, before + bnbStake);
+    }
+
+    function test_usdtAgainstStockUsesEachFeed() public {
+        MockShare usdt = new MockShare("Tether", "USDT");
+        MockSingleFeed usdtFeed = new MockSingleFeed();
+        usdtFeed.set(int256(1 ether), block.timestamp);
+        escrow.setSingleFeed(address(usdt), address(usdtFeed));
+        usdt.mint(ada, DEPOSIT);
+        nvda.mint(bob, DEPOSIT);
+        vm.prank(ada);
+        usdt.approve(address(escrow), type(uint256).max);
+        vm.prank(bob);
+        nvda.approve(address(escrow), type(uint256).max);
+        vm.prank(ada);
+        escrow.deposit(address(usdt), DEPOSIT);
+        vm.prank(bob);
+        escrow.deposit(address(nvda), DEPOSIT);
+
+        vm.prank(settler);
+        escrow.lock(bet1, ada, bob, address(usdt), address(nvda), USD_STAKE);
+        vm.prank(settler);
+        escrow.settle(bet1, ShareEscrow.Outcome.BWins);
+
+        assertEq(escrow.balanceOf(bob, address(usdt)), USD_STAKE);
+        assertEq(escrow.balanceOf(bob, address(nvda)), DEPOSIT);
+        assertEq(escrow.balanceOf(ada, address(usdt)), DEPOSIT - USD_STAKE);
+        assertEq(escrow.balanceOf(ada, address(nvda)), 0);
+    }
+
+    function test_shortNativeBalanceAndStaleBnbFeedRevert() public {
+        MockSingleFeed bnbFeed = new MockSingleFeed();
+        bnbFeed.set(int256(600 ether), block.timestamp);
+        escrow.setSingleFeed(address(0), address(bnbFeed));
+        vm.deal(ada, 1 ether);
+        vm.prank(ada);
+        escrow.depositNative{value: 1}();
+        vm.prank(bob);
+        escrow.deposit(address(tsla), DEPOSIT);
+
+        vm.prank(settler);
+        vm.expectRevert(ShareEscrow.InsufficientBalance.selector);
+        escrow.lock(bet1, ada, bob, address(0), address(tsla), USD_STAKE);
+
+        vm.prank(ada);
+        escrow.depositNative{value: 1 ether - 1}();
+        bnbFeed.set(int256(600 ether), block.timestamp - MAX_AGE - 1);
+        vm.prank(settler);
+        vm.expectRevert(ShareEscrow.StalePrice.selector);
+        escrow.lock(bet1, ada, bob, address(0), address(tsla), USD_STAKE);
+    }
+
+    function test_lockedNativeCannotBeWithdrawn() public {
+        MockSingleFeed bnbFeed = new MockSingleFeed();
+        bnbFeed.set(int256(600 ether), block.timestamp);
+        escrow.setSingleFeed(address(0), address(bnbFeed));
+        uint256 bnbStake = 1666666666666666;
+        vm.deal(ada, bnbStake);
+        vm.prank(ada);
+        escrow.depositNative{value: bnbStake}();
+        vm.prank(bob);
+        escrow.deposit(address(tsla), DEPOSIT);
+        vm.prank(settler);
+        escrow.lock(bet1, ada, bob, address(0), address(tsla), USD_STAKE);
+
+        vm.prank(ada);
+        vm.expectRevert(ShareEscrow.InsufficientBalance.selector);
+        escrow.withdraw(address(0), 1);
+    }
+
+    function test_erc20DepositRejectsTheNativeSentinel() public {
+        vm.expectRevert(ShareEscrow.ZeroAddress.selector);
+        escrow.deposit(address(0), 1);
+        vm.expectRevert(ShareEscrow.ZeroAmount.selector);
+        escrow.depositNative{value: 0}();
+    }
+
     function _status(bytes32 id) internal view returns (ShareEscrow.BetStatus status) {
         (,,,,,,,,,,, status) = escrow.bets(id);
     }

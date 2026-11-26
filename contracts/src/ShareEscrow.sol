@@ -11,10 +11,12 @@ import {IMultiFeed} from "push-oracle-interfaces/src/IMultiFeed.sol";
 import {FeedCodec} from "push-oracle-interfaces/src/libraries/FeedCodec.sol";
 
 /// @title ShareEscrow
-/// @notice One free balance per player per share token. A match locks two
-/// piles, which may be different tokens, and the game result pays both piles
-/// to the winner. At lock the contract reads each token's Atlas feed, sizes
-/// the pile from that price, and freezes the share count.
+/// @notice One free balance per player per asset. An asset is a share token,
+/// USDT, or native BNB (`address(0)`). A match locks one pile from each player.
+/// The piles may be different assets. At lock the contract reads each asset's
+/// Atlas feed, sizes that pile from the shared dollar amount, and freezes the
+/// count. The settler chooses the asset: a share when the player holds one,
+/// otherwise native BNB or USDT. The game result pays both piles to the winner.
 contract ShareEscrow is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using FeedCodec for bytes32;
@@ -100,6 +102,7 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
     error NoOracle();
     error FeedNeverUpdated();
     error BadPrice();
+    error TransferFailed();
 
     modifier onlySettler() {
         if (msg.sender != settler) revert NotSettler();
@@ -135,7 +138,8 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
         emit MaxPriceAgeUpdated(seconds_);
     }
 
-    /// @notice Point `token` at an Atlas SingleFeed. `latestRoundData` sizes its pile.
+    /// @notice Point `token` at an Atlas SingleFeed. `address(0)` is native BNB.
+    /// `latestRoundData` sizes its pile.
     function setSingleFeed(address token, address feed) external onlyOwner {
         _setOracle(token, feed, bytes4(0), FeedKind.Single);
     }
@@ -147,6 +151,7 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
     }
 
     /// @notice Pull `token` from the caller into their free balance.
+    /// Native BNB uses `depositNative`. `address(0)` is reserved for it.
     function deposit(address token, uint256 amount) external nonReentrant {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
@@ -155,26 +160,37 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
         emit Deposited(msg.sender, token, amount, balanceOf[msg.sender][token]);
     }
 
-    /// @notice Send free balance of `token` back to the caller. Locked stakes stay.
+    /// @notice Credit the caller's native BNB balance. The value stays here until withdraw.
+    function depositNative() external payable nonReentrant {
+        if (msg.value == 0) revert ZeroAmount();
+        balanceOf[msg.sender][address(0)] += msg.value;
+        emit Deposited(msg.sender, address(0), msg.value, balanceOf[msg.sender][address(0)]);
+    }
+
+    /// @notice Send free balance of `token` back to the caller. `address(0)` sends native BNB.
+    /// Locked stakes stay.
     function withdraw(address token, uint256 amount) external nonReentrant {
-        if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         uint256 free = balanceOf[msg.sender][token];
         if (free < amount) revert InsufficientBalance();
         balanceOf[msg.sender][token] = free - amount;
-        IERC20(token).safeTransfer(msg.sender, amount);
+        if (token == address(0)) {
+            (bool ok,) = msg.sender.call{value: amount}("");
+            if (!ok) revert TransferFailed();
+        } else {
+            IERC20(token).safeTransfer(msg.sender, amount);
+        }
         emit Withdrawn(msg.sender, token, amount, balanceOf[msg.sender][token]);
     }
 
     /// @notice Lock two piles sized from the Atlas feeds. `usdStake` is the
-    /// dollar amount, 18 decimals, for each side. The share counts freeze here.
+    /// dollar amount, 18 decimals, for each side. Either asset may be a share,
+    /// USDT, or native BNB (`address(0)`). The counts freeze here.
     function lock(bytes32 betId, address playerA, address playerB, address tokenA, address tokenB, uint256 usdStake)
         external
         onlySettler
     {
-        if (playerA == address(0) || playerB == address(0) || tokenA == address(0) || tokenB == address(0)) {
-            revert ZeroAddress();
-        }
+        if (playerA == address(0) || playerB == address(0)) revert ZeroAddress();
         if (playerA == playerB) revert SamePlayers();
         if (usdStake == 0) revert ZeroAmount();
         if (bets[betId].status != BetStatus.None) revert BetExists();
@@ -244,7 +260,7 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
     }
 
     function _setOracle(address token, address feed, bytes4 feedId, FeedKind kind) private {
-        if (token == address(0) || feed == address(0)) revert ZeroAddress();
+        if (feed == address(0)) revert ZeroAddress();
         oracles[token] = Oracle({feed: feed, feedId: feedId, kind: kind});
         emit OracleUpdated(token, feed, feedId, kind);
     }
@@ -278,7 +294,7 @@ contract ShareEscrow is Ownable, ReentrancyGuard {
         view
         returns (uint256 shares)
     {
-        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        uint8 tokenDecimals = token == address(0) ? 18 : IERC20Metadata(token).decimals();
         shares = usdStake * (10 ** tokenDecimals) / (price * (10 ** (18 - priceDecimals)));
         if (shares == 0) revert ZeroAmount();
     }

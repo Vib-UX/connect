@@ -50,7 +50,7 @@ On BSC testnet a deposit is 0.1 USDT and a match locks 0.001 USDT. Set `CONNECT_
 
 ### Which share
 
-The relay names each player's token before `lock`. It reads that player's free balances, asks CoinMarketCap for each holding's 24-hour change, and asks Cournot which holding is most likely to be the worst of that book over the next 24 hours. The highest probability is the token. If every Cournot call abstains, the lowest 24-hour change is the token. `lock` then asks Atlas to size the pile. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A player who holds a share locks that share. A player who does not holds native BNB or USDT instead, and the other player can still lock a share. CoinMarketCap supplies each share's 24-hour change, and Cournot names the share most likely to be the worst of that book over the next 24 hours. If every Cournot call abstains, the lowest 24-hour change is the share. On startup the relay reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed and logs whether the two lean the same way. The comparison does not change `lock`. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -63,6 +63,12 @@ sequenceDiagram
   Relay->>Escrow: free balances per player
   Relay->>CMC: quotes latest for those tokens
   CMC-->>Relay: percent_change_24h
+  Relay->>CMC: fear and greed latest
+  CMC-->>Relay: value and classification
+  Relay->>Cournot: gold down over the next 24h
+  Cournot-->>Relay: probability
+  Note over Relay: both lean down, or neither does
+  Note over Relay: agreement is logged and does not change lock
   loop each holding
     Relay->>Cournot: worst of this book in 24h
     Cournot-->>Relay: probability or abstain
@@ -120,7 +126,7 @@ Nvidia against Tesla is one way to use it. In the clip each side stakes $100. Pl
 
 ![Each player locks a preferred stock, the escrow matches the dollar value, and the match settles it](contracts/docs/share-escrow-flow.gif)
 
-On BSC testnet the live proof uses the NVDAB/USD and XAU/USD SingleFeeds. Those addresses are price feeds, so the test mints stand-in NVDAB and XAUt piles and registers them against the feeds. The deployed escrow is [`0xEB8B7C5105D95E08c09fcf067936e44222BF2A59`](https://testnet.bscscan.com/address/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59), and the [source matches the bytecode](https://repo.sourcify.dev/contracts/full_match/97/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59/).
+On BSC testnet the live proof uses the NVDAB/USD, XAU/USD, and BNB/USD SingleFeeds. Those addresses are price feeds, so the test mints stand-in NVDAB and XAUt piles and registers them against the feeds. The deployed escrow is [`0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`](https://testnet.bscscan.com/address/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7), and the [source matches the bytecode](https://repo.sourcify.dev/contracts/full_match/97/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7/).
 
 The local fork reads those same feeds and does not broadcast:
 

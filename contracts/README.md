@@ -84,7 +84,7 @@ Each player deposits the share token they want to stake. A match locks one pile 
 
 ### Which share
 
-The relay names each player's token before `lock`. It reads that player's free balances, asks CoinMarketCap for each holding's 24-hour change, and asks Cournot which holding is most likely to be the worst of that book over the next 24 hours. The highest probability is the token. If every Cournot call abstains, the lowest 24-hour change is the token. `lock` then asks Atlas to size the pile. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A player who holds a share locks that share. A player who does not holds native BNB or USDT instead, and the other player can still lock a share. CoinMarketCap supplies each share's 24-hour change, and Cournot names the share most likely to be the worst of that book over the next 24 hours. If every Cournot call abstains, the lowest 24-hour change is the share. On startup the relay reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed and logs whether the two lean the same way. The comparison does not change `lock`. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. Native BNB is `address(0)`. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -97,6 +97,12 @@ sequenceDiagram
   Relay->>Escrow: free balances per player
   Relay->>CMC: quotes latest for those tokens
   CMC-->>Relay: percent_change_24h
+  Relay->>CMC: fear and greed latest
+  CMC-->>Relay: value and classification
+  Relay->>Cournot: gold down over the next 24h
+  Cournot-->>Relay: probability
+  Note over Relay: both lean down, or neither does
+  Note over Relay: agreement is logged and does not change lock
   loop each holding
     Relay->>Cournot: worst of this book in 24h
     Cournot-->>Relay: probability or abstain
@@ -150,7 +156,7 @@ sequenceDiagram
   Note over Escrow: settle does not read Atlas
 ```
 
-Nvidia against Tesla is the example in the clip. The same calls work for any pair of registered share tokens. On BSC testnet the registered pair is NVDAB/USD and XAU/USD, both SingleFeeds.
+Nvidia against Tesla is the example in the clip. The same calls work for any pair of registered assets, including native BNB. On BSC testnet the registered feeds are NVDAB/USD, XAU/USD, and BNB/USD, all SingleFeeds.
 
 ![Each player locks a preferred stock, the escrow matches the dollar value, and the match settles it](docs/share-escrow-flow.gif)
 
@@ -176,6 +182,7 @@ Atlas published these as SingleFeeds. `description()` returns the pair. They are
 |---|---|
 | NVDAB/USD | [`0x3eF39d6361EfA1E8Ca066751f438077dA81082A6`](https://testnet.bscscan.com/address/0x3eF39d6361EfA1E8Ca066751f438077dA81082A6) |
 | XAU/USD | [`0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764`](https://testnet.bscscan.com/address/0xB3C87F255CE00b2692dc0eaf3e5985fBe2489764) |
+| BNB/USD | [`0x3957d289ee9C38272377786787ea34F9dd29788D`](https://testnet.bscscan.com/address/0x3957d289ee9C38272377786787ea34F9dd29788D) |
 
 ### Run the fork locally
 
@@ -195,21 +202,21 @@ forge test --match-path test/ShareEscrow.fork.t.sol -vv
 
 ### Broadcast on BSC testnet
 
-`script/SimulateShareEscrowTestnet.s.sol` deployed the escrow, minted the two piles, registered the feeds, and ran one $1 match. Player A won.
+`script/SimulateShareEscrowTestnet.s.sol` deployed the escrow, minted the two piles, registered the NVDAB, XAU, and native BNB feeds, and ran one $1 match. Player A deposited 1 NVDAB and player B deposited 1 XAUt. Player A won.
 
 | | Address |
 |---|---|
-| ShareEscrow | [`0xEB8B7C5105D95E08c09fcf067936e44222BF2A59`](https://testnet.bscscan.com/address/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59) |
-| NVDAB pile | [`0x0132A630fbf6c3570a247ac867E13849529e5208`](https://testnet.bscscan.com/address/0x0132A630fbf6c3570a247ac867E13849529e5208) |
-| XAUt pile | [`0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159`](https://testnet.bscscan.com/address/0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159) |
+| ShareEscrow | [`0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7`](https://testnet.bscscan.com/address/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7) |
+| NVDAB pile | [`0x876904e7b854f17A5582524aa5028124240f0e8E`](https://testnet.bscscan.com/address/0x876904e7b854f17A5582524aa5028124240f0e8E) |
+| XAUt pile | [`0x73888097E35C7105aE80022ae2A8beaAc1435E73`](https://testnet.bscscan.com/address/0x73888097E35C7105aE80022ae2A8beaAc1435E73) |
 
 Source matches the deployed bytecode:
 
-- [ShareEscrow on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0xEB8B7C5105D95E08c09fcf067936e44222BF2A59/)
-- [NVDAB pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x0132A630fbf6c3570a247ac867E13849529e5208/)
-- [XAUt pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x9DeCD84C5CA6196a275Aac8ed641D771C06f8159/)
+- [ShareEscrow on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0xda4c60592E42DCC2AED553c38D1F8B517d89e3c7/)
+- [NVDAB pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x876904e7b854f17A5582524aa5028124240f0e8E/)
+- [XAUt pile on Sourcify](https://repo.sourcify.dev/contracts/full_match/97/0x73888097E35C7105aE80022ae2A8beaAc1435E73/)
 
-[`lock`](https://testnet.bscscan.com/tx/0x9430f2f2f57dc0ba58b82caf04fa6ad73417238f0fb2a6d534dcf21d92e93ba8) froze 0.006652227102728008 NVDAB at $150.32559540697437615 and 0.000279978479791059 XAUt at $3571.7030849880792393. [`settle`](https://testnet.bscscan.com/tx/0x915d440552ead9b569a78205b09f8d18ade5248e2c8eefa5d204e65b7ca92d73) paid both piles to A. The gold print moved between the script's dry-run and the mined `lock`, so A's wallet received 0.000279774185096687 XAUt and 0.000000000204294694372 XAUt is still credited inside the escrow.
+[A deposited 1 NVDAB](https://testnet.bscscan.com/tx/0x2242b8e5f1f57c2104f3d4faeeca0a6ef03f86eef8294321f54310bdc27c5d4b) and [B deposited 1 XAUt](https://testnet.bscscan.com/tx/0x22d1636a901e6a68b54fc75e1b584a886441616265c91fc332d15e9fa63a54ef). [`lock`](https://testnet.bscscan.com/tx/0x2febc023fc2a8b59f0c691a00152769df1f6944c55b03088952ebfcb78ba9b28) froze 0.006646411015529426 NVDAB at $150.45714110419697716 and 0.000281055500208008 XAUt at $3558.0161187377699159. [`settle`](https://testnet.bscscan.com/tx/0x9ae34636161cc7b9029abc2f2f0bd6094661f0af0095cda7a4a035c2cd4537e9) paid both piles to A. A withdrew those stakes. The rest of each deposit stays as a free balance: 0.993353588984470574 NVDAB for A and 0.999718944499791992 XAUt for B.
 
 ## Deploy again
 
