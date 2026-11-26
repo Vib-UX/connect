@@ -82,6 +82,34 @@ From the repo root, `pnpm test:contracts` and `pnpm test:contracts:fork` run tho
 
 Each player deposits the share token they want to stake. A match locks one pile from each player. The tokens can differ. Both sides pass the same dollar size. Atlas is read only at `lock`. `settle` pays the stored counts from the match outcome and does not read the feed again. The winner receives both piles. A draw returns each pile.
 
+### Which share
+
+The relay names each player's token before `lock`. It reads that player's free balances, asks CoinMarketCap for each holding's 24-hour change, and asks Cournot which holding is most likely to be the worst of that book over the next 24 hours. The highest probability is the token. If every Cournot call abstains, the lowest 24-hour change is the token. `lock` then asks Atlas to size the pile. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+
+```mermaid
+sequenceDiagram
+  participant Relay
+  participant CMC as CoinMarketCap
+  participant Cournot
+  participant Escrow as ShareEscrow
+  participant Atlas
+
+  Relay->>Escrow: free balances per player
+  Relay->>CMC: quotes latest for those tokens
+  CMC-->>Relay: percent_change_24h
+  loop each holding
+    Relay->>Cournot: worst of this book in 24h
+    Cournot-->>Relay: probability or abstain
+  end
+  alt a probability came back
+    Note over Relay: highest probability is the candidate
+  else every call abstained
+    Note over Relay: lowest 24h change is the candidate
+  end
+  Relay->>Escrow: lock with that token per player
+  Escrow->>Atlas: size each pile
+```
+
 ### Atlas workflow
 
 `lock` is the only call that reads Atlas. A SingleFeed answers through `latestRoundData()`. A MultiFeed id answers through `fetchCompact` and [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). A zero answer, an empty MultiFeed word, or an update older than `maxPriceAge` reverts. The share count for each side is `usdStake * 10^tokenDecimals / (price * 10^(18 - priceDecimals))`. The fork test and the testnet deploy set `maxPriceAge` to 3 days. A second `settle` reverts.

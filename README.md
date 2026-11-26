@@ -48,6 +48,34 @@ On BSC testnet a deposit is 0.1 USDT and a match locks 0.001 USDT. Set `CONNECT_
 
 `ShareEscrow` is separate from the USDT escrow. Each player deposits the share token they prefer. Both sides name the same dollar size. Atlas decides how many shares that dollar size is. Chess or Flappy decides who receives both piles.
 
+### Which share
+
+The relay names each player's token before `lock`. It reads that player's free balances, asks CoinMarketCap for each holding's 24-hour change, and asks Cournot which holding is most likely to be the worst of that book over the next 24 hours. The highest probability is the token. If every Cournot call abstains, the lowest 24-hour change is the token. `lock` then asks Atlas to size the pile. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+
+```mermaid
+sequenceDiagram
+  participant Relay
+  participant CMC as CoinMarketCap
+  participant Cournot
+  participant Escrow as ShareEscrow
+  participant Atlas
+
+  Relay->>Escrow: free balances per player
+  Relay->>CMC: quotes latest for those tokens
+  CMC-->>Relay: percent_change_24h
+  loop each holding
+    Relay->>Cournot: worst of this book in 24h
+    Cournot-->>Relay: probability or abstain
+  end
+  alt a probability came back
+    Note over Relay: highest probability is the candidate
+  else every call abstained
+    Note over Relay: lowest 24h change is the candidate
+  end
+  Relay->>Escrow: lock with that token per player
+  Escrow->>Atlas: size each pile
+```
+
 ### Atlas workflow
 
 `lock` is the only call that reads Atlas. A SingleFeed answers through `latestRoundData()`. A MultiFeed id answers through `fetchCompact` and [`FeedCodec.decode`](https://github.com/oracle-atlas/push-oracle-interfaces/blob/main/src/libraries/FeedCodec.sol). A zero answer, or an update older than `maxPriceAge`, reverts. The share count for each side is `usdStake * 10^tokenDecimals / (price * 10^(18 - priceDecimals))`.
