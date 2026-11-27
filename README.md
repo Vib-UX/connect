@@ -2,17 +2,17 @@
 
 Connect p2p games inside agentic sessions.
 
-<video src="https://github.com/user-attachments/assets/001c658a-d03e-465c-a1a0-988e02169641" autoplay loop muted playsinline></video>
+![Connect p2p battles inside agentic sessions](docs/connect-web.gif)
 
 ## Share stakes
 
 Each player deposits the share token they prefer into `ShareEscrow`. Both sides name the same dollar size. Atlas decides how many shares that dollar size is. Chess or Flappy decides who receives both piles.
 
-<video src="https://github.com/user-attachments/assets/fab6b099-649d-4c16-bdca-df579953c526" autoplay loop muted playsinline></video>
+![Share stakes](docs/connect-intel.gif)
 
 ### Which share
 
-The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. At lock time the relay quotes every share in that wallet, in batches, and reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed. When those two lean the same way, the lock takes the lowest 24-hour change that covers the stake. When they lean apart, the lock takes the highest. The same change breaks by token address. A player who holds no covering share locks native BNB or USDT instead, and the other player can still lock a share. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. At lock time the relay quotes every share in that wallet, in batches, and asks Cournot whether each covering share finishes down over the next 24 hours. That book lean is read beside CoinMarketCap Fear and Greed. When those two lean the same way, the lock takes the lowest 24-hour change that covers the stake. When they lean apart, the lock takes the highest. The same change breaks by token address. A player who holds no covering share locks native BNB or USDT instead, and the other player can still lock a share. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -28,10 +28,12 @@ sequenceDiagram
     Relay->>CMC: quotes latest
     CMC-->>Relay: percent_change_24h
   end
+  loop each covering share
+    Relay->>Cournot: finishes down over the next 24h
+    Cournot-->>Relay: probability
+  end
   Relay->>CMC: fear and greed latest
   CMC-->>Relay: value and classification
-  Relay->>Cournot: gold down over the next 24h
-  Cournot-->>Relay: probability
   Note over Relay: same way locks the lowest 24h change
   Note over Relay: apart locks the highest 24h change
   Note over Relay: a tie breaks by token address
@@ -114,6 +116,6 @@ pnpm test:contracts:share:fork
 
 ## Relay living brain
 
-<video src="https://github.com/user-attachments/assets/90b7bd6a-cca7-43dc-b342-3b1c69911db6" autoplay loop muted playsinline></video>
+![Relay living brain](docs/connect-brain.gif)
 
-<video src="https://github.com/user-attachments/assets/fb24cc2a-0b43-4e52-b2c9-3c862d202960" autoplay loop muted playsinline></video>
+![Agent wait](docs/connect-wait.gif)

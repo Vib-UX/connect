@@ -3,6 +3,7 @@ import test from "node:test";
 import type { MarketComparison, ShareQuote } from "./coinmarketcap.js";
 import {
   chooseShare,
+  coveringSymbols,
   lockTokensForPlayers,
   readShareStake,
   type ShareHolding,
@@ -43,6 +44,14 @@ test("the fallback share is the worst 24-hour change, beside the Cournot compari
   assert.equal(reading.fallbackSymbol, "TSLA");
   assert.equal(reading.comparison.agrees, true);
   assert.equal(reading.credits, 3);
+});
+
+test("Cournot is asked only about shares that cover the stake", () => {
+  const shortGold: ShareHolding[] = [
+    { symbol: "NVDA", token: NVDAB, balance: 10n ** 18n, decimals: 18 },
+    { symbol: "GOLD", token: XAUT, balance: 1n, decimals: 18 },
+  ];
+  assert.deepEqual(coveringSymbols(nvdaGoldQuotes, [shortGold, []], 1), ["NVDA"]);
 });
 
 test("when Cournot and Fear and Greed lean the same way, lock the worst covering share", () => {

@@ -1,7 +1,8 @@
 import "./load-env.js";
 import cors from "cors";
+import { shareBook } from "./chains.js";
 import { compareWithFearAndGreed } from "./coinmarketcap.js";
-import { cournotGoldDownProbability } from "./cournot.js";
+import { cournotDownProbability } from "./cournot.js";
 import express from "express";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
@@ -84,7 +85,9 @@ function publishShareStake(): void {
   if (!process.env.CMC_API_KEY?.trim() || !process.env.COURNOT_API_KEY?.trim()) return;
   void (async () => {
     try {
-      const cournotProbability = await cournotGoldDownProbability();
+      const symbols = shareBook().map((entry) => entry.symbol);
+      if (symbols.length === 0) return;
+      const cournotProbability = await cournotDownProbability(symbols);
       const comparison = await compareWithFearAndGreed(cournotProbability);
       console.log(
         `share stake cournot=${comparison.cournotProbability} fear=${comparison.fearGreed} (${comparison.classification}) agrees=${comparison.agrees}`,

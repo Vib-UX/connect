@@ -84,7 +84,7 @@ Each player deposits the share token they want to stake. A match locks one pile 
 
 ### Which share
 
-The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. At lock time the relay quotes every share in that wallet, in batches, and reads Cournot's gold-down probability beside CoinMarketCap Fear and Greed. When those two lean the same way, the lock takes the lowest 24-hour change that covers the stake. When they lean apart, the lock takes the highest. The same change breaks by token address. A player who holds no covering share locks native BNB or USDT instead, and the other player can still lock a share. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. Native BNB is `address(0)`. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
+The relay names each player's asset before `lock`. A wallet can hold many shares, more than four or five, and the escrow keeps a free balance for each one. At lock time the relay quotes every share in that wallet, in batches, and asks Cournot whether each covering share finishes down over the next 24 hours. That book lean is read beside CoinMarketCap Fear and Greed. When those two lean the same way, the lock takes the lowest 24-hour change that covers the stake. When they lean apart, the lock takes the highest. The same change breaks by token address. A player who holds no covering share locks native BNB or USDT instead, and the other player can still lock a share. `lock` asks Atlas for every side, including BNB and USDT, and sizes each pile to the same dollar amount. Native BNB is `address(0)`. The CoinMarketCap key stays in the relay environment. It is not in the extension or the web page.
 
 ```mermaid
 sequenceDiagram
@@ -100,10 +100,12 @@ sequenceDiagram
     Relay->>CMC: quotes latest
     CMC-->>Relay: percent_change_24h
   end
+  loop each covering share
+    Relay->>Cournot: finishes down over the next 24h
+    Cournot-->>Relay: probability
+  end
   Relay->>CMC: fear and greed latest
   CMC-->>Relay: value and classification
-  Relay->>Cournot: gold down over the next 24h
-  Cournot-->>Relay: probability
   Note over Relay: same way locks the lowest 24h change
   Note over Relay: apart locks the highest 24h change
   Note over Relay: a tie breaks by token address

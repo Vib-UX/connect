@@ -21,8 +21,8 @@ import {
   type ShareBookEntry,
 } from "./chains.js";
 import { compareWithFearAndGreed, quoteShares } from "./coinmarketcap.js";
-import { cournotGoldDownProbability } from "./cournot.js";
-import { lockTokensForPlayers, type ShareHolding } from "./shareStake.js";
+import { cournotDownProbability } from "./cournot.js";
+import { coveringSymbols, lockTokensForPlayers, type ShareHolding } from "./shareStake.js";
 
 /** USDT on BNB Smart Chain mainnet (18 decimals). */
 export const USDT_BNB = "0x55d398326f99059fF775485246999027B3197955" as const;
@@ -325,7 +325,12 @@ async function chooseLockTokens(
   }
 
   const symbols = [...new Set([...holdingsA, ...holdingsB].map((holding) => holding.symbol))];
-  const [quoted, cournotProbability] = await Promise.all([quoteShares(symbols), cournotGoldDownProbability()]);
+  const quoted = await quoteShares(symbols);
+  const covering = coveringSymbols(quoted.quotes, [holdingsA, holdingsB], usdFromStake(stake));
+  if (covering.length === 0) {
+    return { tokenA: usdt, tokenB: usdt };
+  }
+  const cournotProbability = await cournotDownProbability(covering);
   const comparison = await compareWithFearAndGreed(cournotProbability);
   const chosen = lockTokensForPlayers(
     quoted.quotes,

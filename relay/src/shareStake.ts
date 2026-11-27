@@ -82,6 +82,29 @@ export function chooseShare(
   return ranked[0]?.holding ?? null;
 }
 
+/** Unique covering symbols across the wallets. Cournot is called on this set. */
+export function coveringSymbols(
+  quotes: ShareQuote[],
+  holdingsLists: Array<Array<string | ShareHolding>>,
+  usdStake?: number,
+): string[] {
+  const seen = new Set<string>();
+  const symbols: string[] = [];
+  for (const holdings of holdingsLists) {
+    for (const entry of holdings) {
+      const holding = asHolding(entry);
+      const key = holding.symbol.trim().toUpperCase();
+      if (!key || seen.has(key)) continue;
+      const quote = quoteFor(quotes, holding.symbol);
+      if (!quote || typeof quote.percentChange24h !== "number") continue;
+      if (!coversStake(holding, quote, usdStake)) continue;
+      seen.add(key);
+      symbols.push(holding.symbol);
+    }
+  }
+  return symbols;
+}
+
 /** Prefer the worst share when Cournot and Fear and Greed lean the same way. */
 export function preferFromAgreement(agrees: boolean): SharePrefer {
   return agrees ? "worst" : "best";
