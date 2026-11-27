@@ -517,6 +517,58 @@ body {
 
 .closing { margin-top: 1.35rem; }
 
+#session-launch { scroll-margin-top: 1.25rem; }
+
+.formula {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--plate);
+  color: var(--gold);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.session-board {
+  margin-top: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ticket {
+  margin: 0.75rem 0 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.ticket .ok { color: var(--gold); }
+.ticket .no { color: var(--faint); }
+
+.wins { color: var(--gold); font-family: var(--mono); font-size: 0.85rem; }
+
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.session-actions button {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #12161b;
+  color: var(--ink);
+  padding: 0.28rem 0.7rem;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.session-actions button:hover { border-color: var(--gold); color: var(--gold); }
+
 .textlink {
   color: var(--gold);
   text-underline-offset: 0.18em;

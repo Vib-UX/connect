@@ -38,6 +38,7 @@
         <nav class="nav">
           <a href="#market-intelligence">Market intelligence layer</a>
           <a href="#living-brain">Relay living brain</a>
+          <a href="#session-launch">Session launch</a>
           <a href="#download">Download</a>
           <p class="chain">BNB Chain</p>
         </nav>
@@ -91,6 +92,31 @@
         <h2>Relay living brain</h2>
         <video class="reel" src="/connect-brain.mp4" autoplay muted loop playsinline></video>
         <video class="reel" src="/connect-wait.mp4" autoplay muted loop playsinline></video>
+      </section>
+
+      <section class="about" id="session-launch">
+        <h2>Four.meme session launch</h2>
+        <p class="kicker">OpenFour trade policy <span class="command">module.trade.session</span></p>
+        <p class="closing">
+          A session token’s buy size is that wallet’s Connect wins. The bonding curve still sets the price.
+          A wallet with no wins buys nothing. Selling the tokens does not give the allowance back.
+        </p>
+        <p class="formula">allowance = min(sale, min(wins, 20) × 1,000)</p>
+        <div class="pair session-board" id="session-board"></div>
+        <dl class="define">
+          <div>
+            <dt>Wins</dt>
+            <dd>The Connect settler records one win after ShareEscrow settles the match. A draw is not a win. Another room’s wins do not count.</dd>
+          </div>
+          <div>
+            <dt>Curve</dt>
+            <dd>Token, vault, bonding curve, and Pancake migration stay the OpenFour standard. Only the buy cap changes.</dd>
+          </div>
+          <div>
+            <dt>Sell</dt>
+            <dd>Custom data remembers what the wallet already bought. A sell can return tokens. It cannot refill the cap.</dd>
+          </div>
+        </dl>
       </section>
 
       <section class="install" id="download">
@@ -162,6 +188,54 @@ claude --plugin-dir "$(connect-claude-mod)"</code></pre>
       </section>
     </div>
     <script>
+      (function () {
+        const perWin = 1000n;
+        const maxWins = 20n;
+        const players = [
+          { name: "Alice", wins: 0n, bought: 0n },
+          { name: "Bob", wins: 0n, bought: 0n },
+        ];
+        const board = document.getElementById("session-board");
+
+        function allowance(wins) {
+          const counted = wins > maxWins ? maxWins : wins;
+          return counted * perWin;
+        }
+
+        function render() {
+          board.replaceChildren();
+          players.forEach((player, index) => {
+            const cap = allowance(player.wins);
+            const left = cap > player.bought ? cap - player.bought : 0n;
+            const seat = document.createElement("article");
+            seat.className = "seat";
+            const leftClass = left > 0n ? "ok" : "no";
+            seat.innerHTML =
+              '<p class="who">' + player.name + '</p>' +
+              '<p class="task"><span class="wins">' + player.wins + " wins</span></p>" +
+              '<p class="ticket">allowance ' + cap + "<br>bought " + player.bought +
+              '<br>left <span class="' + leftClass + '">' + left + "</span></p>" +
+              '<div class="session-actions">' +
+              '<button type="button" data-act="win" data-i="' + index + '">Record win</button>' +
+              '<button type="button" data-act="buy" data-i="' + index + '">Buy left</button>' +
+              '<button type="button" data-act="sell" data-i="' + index + '">Sell all</button>' +
+              "</div>";
+            board.appendChild(seat);
+          });
+        }
+
+        board.addEventListener("click", (event) => {
+          const button = event.target.closest("button");
+          if (!button) return;
+          const player = players[Number(button.dataset.i)];
+          if (button.dataset.act === "win") player.wins += 1n;
+          if (button.dataset.act === "buy") player.bought = allowance(player.wins);
+          render();
+        });
+
+        render();
+      })();
+
       document.querySelectorAll(".copy").forEach((button) => {
         button.addEventListener("click", async () => {
           const text = button.getAttribute("data-copy").replaceAll("&#10;", "\n");
